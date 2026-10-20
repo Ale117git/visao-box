@@ -60,7 +60,16 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public volatile String camLabel = "";
     public volatile boolean calibration = false;
     public volatile boolean mirror = false;
-    public volatile int webMask;
+    public volatile int[] webVisible = new int[0];
+
+    // QR code (normalizado na imagem em pé: centro u, v e tamanho em altura)
+    public volatile float qrU, qrV, qrS;
+    public volatile String qrText;
+    public volatile long qrStamp;
+    private long qrStampSeen;
+    public volatile boolean qrWanted;
+
+    public volatile String pendingLayout;
 
     // gravação da realidade mista (uma imagem só, sem dividir os olhos)
     public volatile Surface recSurface;
@@ -321,9 +330,18 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             ui.frame = frame;
             ui.camLabel = camLabel;
             ui.updateHands(rawHands, rawStamp, camX0, camDW, camY0, camDH, now);
+            long qs = qrStamp;
+            if (qs != qrStampSeen) {
+                qrStampSeen = qs;
+                float u = mirror ? 1 - qrU : qrU;
+                ui.setQr(camX0 + u * camDW, camY0 + qrV * camDH, qrS * camDH, qrText, now);
+            }
+            qrWanted = ui.qrWanted(now);
+            String pl = pendingLayout;
+            if (pl != null) { pendingLayout = null; ui.restoreLayout(pl, now); }
             ui.update(now, dt);
             ui.status = statusLine(now);
-            webMask = ui.webVisibleMask();
+            webVisible = ui.webVisible();
             openWindows = ui.visibleCount();
             webFocusId = ui.webFocusId();
 
@@ -644,11 +662,158 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         Canvas c = g.c;
         float hw = eyeW / eyeH / 2f + .05f;
         if (cfg.background == Config.BG_VIRTUAL) drawVirtual(sign);
+        else if (cfg.background >= Config.BG_ESPACO) drawScene(cfg.background);
         else {
             g.grad.setShader(new RadialGradient(0, .1f, .9f, 0xFF161A26, 0xFF030407, Shader.TileMode.CLAMP));
             c.drawRect(-hw, -.55f, hw, .55f, g.grad);
             g.grad.setShader(null);
         }
+    }
+
+    /* ================= ambientes 360° ================= */
+
+    private float envYaw, envPitch;
+
+    /** Direção no mundo (guinada, elevação) -> ponto na visão. Devolve null se estiver atrás. */
+    private float[] dir(float yaw, float elev) {
+        float ry = HeadTracker.wrap(yaw - envYaw), rp = envPitch - elev;
+        if (Math.abs(ry) > 1.3f || Math.abs(rp) > 1.3f) return null;
+        return new float[]{ui.f * (float) Math.tan(ry), ui.f * (float) Math.tan(rp)};
+    }
+
+    private float elevY(float elev) { return ui.f * (float) Math.tan(Gfx.clamp(envPitch - elev, -1.3f, 1.3f)); }
+
+    private void vgrad(float y0, float y1, int c0, int c1) {
+        g.grad.setShader(new LinearGradient(0, y0, 0, y1, c0, c1, Shader.TileMode.CLAMP));
+        g.c.drawRect(-3, Math.min(y0, y1), 3, Math.max(y0, y1), g.grad);
+        g.grad.setShader(null);
+    }
+
+    private void glow(float x, float y, float r, int color) {
+        g.grad.setShader(new RadialGradient(x, y, r, new int[]{color, Gfx.a(color, .35f), color & 0x00FFFFFF},
+                new float[]{0, .35f, 1}, Shader.TileMode.CLAMP));
+        g.c.drawCircle(x, y, r, g.grad);
+        g.grad.setShader(null);
+    }
+
+    /** Cenários que acompanham a cabeça: espaço, praia, pôr do sol e sala de cinema. */
+    private void drawScene(int kind) {
+        Canvas c = g.c;
+        boolean on = cfg.headTracking && head.available && head.hasData;
+        envYaw = on ? sYaw : 0; envPitch = on ? sPitch : 0;
+        float roll = on ? sRoll : 0;
+        float t = SystemClock.uptimeMillis() / 1000f;
+        c.save();
+        c.rotate((float) -Math.toDegrees(roll));
+        float hz = elevY(0);
+        switch (kind) {
+            case Config.BG_ESPACO: {
+                vgrad(-2, 2, 0xFF05020F, 0xFF0B0A22);
+                for (float[] st : stars) { float[] q = dir(st[0], st[1] * 1.6f - .7f); if (q != null) g.circle(q[0], q[1], .0022f * st[2], Gfx.a(0xFFFFFFFF, .4f + .6f * st[2])); }
+                float[] n1 = dir(-.9f, .3f); if (n1 != null) glow(n1[0], n1[1], .45f, 0x553A6BFF);
+                float[] n2 = dir(1.9f, -.1f); if (n2 != null) glow(n2[0], n2[1], .5f, 0x55E0457B);
+                float[] pl = dir(.55f, .22f);
+                if (pl != null) {
+                    float r = .16f;
+                    glow(pl[0], pl[1], r * 1.6f, 0x332FA4FF);
+                    g.grad.setShader(new RadialGradient(pl[0] - r * .35f, pl[1] - r * .35f, r * 1.3f, 0xFF7FD3FF, 0xFF143A7A, Shader.TileMode.CLAMP));
+                    c.drawCircle(pl[0], pl[1], r, g.grad);
+                    g.grad.setShader(null);
+                    g.stroke.setColor(0x99C9E7FF); g.stroke.setStrokeWidth(.006f);
+                    c.save(); c.rotate(-18, pl[0], pl[1]);
+                    c.drawOval(new RectF(pl[0] - r * 1.9f, pl[1] - r * .42f, pl[0] + r * 1.9f, pl[1] + r * .42f), g.stroke);
+                    c.restore();
+                }
+                float[] moon = dir(-.35f, .5f);
+                if (moon != null) { g.circle(moon[0], moon[1], .035f, 0xFFD9D4CC); g.circle(moon[0] - .01f, moon[1] - .008f, .008f, 0xFFB9B3A8); }
+                break;
+            }
+            case Config.BG_PRAIA: {
+                vgrad(hz - 1.2f, hz, 0xFF3D8BE0, 0xFFCDE9FF);
+                float sea = elevY(-.2f);
+                vgrad(hz, sea, 0xFF2E86C1, 0xFF1A5E8F);
+                vgrad(sea, sea + 1.5f, 0xFFF1DDB0, 0xFFD9BC85);
+                float[] sun = dir(-.6f, .55f); if (sun != null) { glow(sun[0], sun[1], .2f, 0xAAFFF6C8); g.circle(sun[0], sun[1], .045f, 0xFFFFFBEA); }
+                g.stroke.setStrokeWidth(.003f);
+                for (int i = 0; i < 6; i++) {
+                    float e = -.03f - i * .03f;
+                    float y = elevY(e) + (float) Math.sin(t * 1.3f + i) * .004f;
+                    g.stroke.setColor(Gfx.a(0xFFFFFFFF, .25f + i * .06f));
+                    c.drawLine(-3, y, 3, y, g.stroke);
+                }
+                float foam = sea + (float) Math.sin(t * .8f) * .006f;
+                g.stroke.setColor(0xCCFFFFFF); g.stroke.setStrokeWidth(.006f);
+                c.drawLine(-3, foam, 3, foam, g.stroke);
+                for (int i = 0; i < 5; i++) {
+                    float[] cl = dir(-2.5f + i * 1.25f + t * .01f, .32f + (i % 2) * .08f);
+                    if (cl != null) { g.fill.setColor(0xCCFFFFFF); c.drawOval(new RectF(cl[0] - .09f, cl[1] - .025f, cl[0] + .09f, cl[1] + .025f), g.fill);
+                        c.drawOval(new RectF(cl[0] - .05f, cl[1] - .045f, cl[0] + .04f, cl[1] + .01f), g.fill); }
+                }
+                break;
+            }
+            case Config.BG_POR_DO_SOL: {
+                vgrad(hz - 1.2f, hz, 0xFF2B1B4D, 0xFFFF8A4C);
+                vgrad(hz, hz + 1.2f, 0xFF3A2350, 0xFF120B1E);
+                float[] sun = dir(0, .04f);
+                if (sun != null) {
+                    glow(sun[0], sun[1], .45f, 0x99FFB15C);
+                    g.c.save(); g.c.clipRect(-3, -3, 3, hz);
+                    g.circle(sun[0], sun[1], .07f, 0xFFFFD08A);
+                    g.c.restore();
+                    g.stroke.setStrokeWidth(.004f);
+                    for (int i = 0; i < 9; i++) {
+                        float y = hz + .012f + i * .016f, wdt = .08f - i * .007f + (float) Math.sin(t * 2 + i) * .006f;
+                        g.stroke.setColor(Gfx.a(0xFFFFB15C, .7f - i * .07f));
+                        c.drawLine(sun[0] - wdt, y, sun[0] + wdt, y, g.stroke);
+                    }
+                }
+                Path mt = new Path();
+                boolean st = false;
+                for (int i = -40; i <= 40; i++) {
+                    float yw = i * .08f;
+                    float h = .05f + .035f * (float) Math.sin(yw * 3.1f) + .02f * (float) Math.sin(yw * 7.3f);
+                    float[] q = dir(yw, h);
+                    if (q == null) { st = false; continue; }
+                    if (!st) { mt.moveTo(q[0], hz); mt.lineTo(q[0], q[1]); st = true; } else mt.lineTo(q[0], q[1]);
+                }
+                mt.lineTo(3, hz); mt.lineTo(-3, hz); mt.close();
+                g.fill.setColor(0xFF1B1030);
+                c.drawPath(mt, g.fill);
+                break;
+            }
+            case Config.BG_CINEMA: {
+                vgrad(-2, 2, 0xFF120709, 0xFF070304);
+                float[] scr = dir(0, .08f);
+                if (scr != null) {
+                    glow(scr[0], scr[1], .7f, 0x44506AA0);
+                    g.fill.setColor(0xFF1A1E2A);
+                    c.drawRoundRect(new RectF(scr[0] - .62f, scr[1] - .3f, scr[0] + .62f, scr[1] + .3f), .01f, .01f, g.fill);
+                }
+                for (int side = -1; side <= 1; side += 2) {
+                    float[] cur = dir(side * .75f, .1f);
+                    if (cur != null) { vgradAt(cur[0], .16f, 0xFF5A0F18, 0xFF2A0509); }
+                }
+                g.fill.setColor(0xFF0D0507);
+                for (int row = 0; row < 4; row++) {
+                    float y = elevY(-.2f - row * .09f);
+                    for (int k = -14; k <= 14; k++) {
+                        float[] q = dir(k * .09f, -.2f - row * .09f);
+                        if (q == null) continue;
+                        float s = .028f + row * .006f;
+                        c.drawRoundRect(new RectF(q[0] - s, y - s * 1.1f, q[0] + s, y + s), s * .5f, s * .5f, g.fill);
+                    }
+                }
+                break;
+            }
+            default: break;
+        }
+        c.restore();
+    }
+
+    private void vgradAt(float x, float half, int c0, int c1) {
+        g.grad.setShader(new LinearGradient(x - half, 0, x + half, 0, new int[]{c1, c0, c1}, null, Shader.TileMode.CLAMP));
+        g.c.drawRect(x - half, -3, x + half, 3, g.grad);
+        g.grad.setShader(null);
     }
 
     /** Ambiente virtual: céu estrelado e piso quadriculado em perspectiva, com paralaxe por olho. */

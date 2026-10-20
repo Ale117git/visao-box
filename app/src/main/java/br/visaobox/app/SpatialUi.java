@@ -32,20 +32,29 @@ final class SpatialUi {
 
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
-            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14;
+            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14,
+            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Voz"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}};
     static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.96f, .74f}, {.72f, .52f}, {.72f, .48f},
-            {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}};
-    static final int[] DOCK = {NAV, YOUTUBE, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, MENU};
-    static final int[] MENU_APPS = {NAV, YOUTUBE, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, NOTAS, CONTROLE, CINEMA};
+            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}};
+    static final int[] DOCK = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, VOZ, AJUSTES, MENU};
+    static final int[] MENU_APPS = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO,
+            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, CINEMA, VOZ};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
-            {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"}};
+            {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"},
+            {"WhatsApp", "https://web.whatsapp.com"}, {"Instagram", "https://www.instagram.com"}, {"X", "https://x.com"}};
+    static final int[] SITE_COL = {0xFFFF3B30, 0xFF4285F4, 0xFF8E8E93, 0xFF34A853, 0xFFE53935, 0xFF0A84FF, 0xFF25D366, 0xFFE1306C, 0xFF111111};
+    /** Sites que só funcionam em "modo computador". */
+    static boolean needsDesktop(String url) { return url != null && url.contains("web.whatsapp.com"); }
+    static final String[][] DEFAULT_FAVS = {{"Google", "https://www.google.com"}, {"YouTube", "https://m.youtube.com"},
+            {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Notícias", "https://g1.globo.com"}, {"Mapas", "https://www.google.com/maps"},
+            {"Clima", "https://www.climatempo.com.br"}, {"WhatsApp", "https://web.whatsapp.com"}, {"Instagram", "https://www.instagram.com"}};
     static final String[] NOTE_N = {"Dó", "Ré", "Mi", "Sol", "Lá", "Dó"};
     static final int[] PEN = {0xFFFFFFFF, 0xFFFF6B6B, 0xFFFECA57, 0xFF48DBFB, 0xFF1DD1A1};
     static final int[][] CON = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {0, 5}, {5, 6}, {6, 7}, {7, 8}, {5, 9}, {9, 10}, {10, 11},
@@ -53,9 +62,9 @@ final class SpatialUi {
 
     static final int H_DOCK = 1, H_CLOCK = 2, H_HOMEBAR = 3, H_CHIP = 4, H_TBTN = 5, H_GRAB = 6, H_RESIZE = 7,
             H_BTN = 8, H_AREA = 9, H_BODY = 10, H_EXITCINEMA = 11,
-            H_DOCKBODY = 12, H_KEY = 13, H_KBGRAB = 14, H_KBBODY = 15, H_KBCLOSE = 16;
-    static final String[] TBTN = {"close", "min", "far", "near", "layer"};
-    static final String[] TBTN_TIP = {"Fechar", "Minimizar", "Afastar", "Aproximar", "Atrás / na frente da pessoa"};
+            H_DOCKBODY = 12, H_KEY = 13, H_KBGRAB = 14, H_KBBODY = 15, H_KBCLOSE = 16, H_SCROLL = 17;
+    static final String[] TBTN = {"close", "min", "far", "near", "layer", "pin"};
+    static final String[] TBTN_TIP = {"Fechar", "Minimizar", "Afastar", "Aproximar", "Atrás / na frente da pessoa", "Prender num QR code"};
 
     /* ================= tipos ================= */
     static final class Stroke { int c; final ArrayList<float[]> pts = new ArrayList<>(); }
@@ -68,7 +77,15 @@ final class SpatialUi {
         final ArrayList<Bubble> bubbles = new ArrayList<>(); final ArrayList<Part> parts = new ArrayList<>();
         int score; float t; final long[] flash = new long[6]; long shot;
         int galSel = -1, page = 0;
+        float sbFrac = -1; long sbHoldUntil;      // barra de rolagem: posição mostrada durante o arraste
         final StringBuilder text = new StringBuilder();
+        final ArrayList<Integer> tabs = new ArrayList<>(); int tab;      // abas do Navegador (ids das páginas)
+        int mediaKind;                                                   // Mídia: 0 = vídeos, 1 = músicas
+        // jogo Nave
+        float shipX, shipTarget = Float.NaN; int lives = 3, best; boolean over, firing; float spawn, fireT, hurt;
+        final ArrayList<float[]> shots = new ArrayList<>(), rocks = new ArrayList<>();
+        // presa a um QR code
+        boolean pinned; float pinDX, pinDY, pinScale;
     }
     static final class Btn {
         final String id; final boolean circle; float x, y, r; RectF rect;
@@ -80,7 +97,7 @@ final class SpatialUi {
             return px > rect.left - e && px < rect.right + e && py > rect.top - e && py < rect.bottom + e;
         }
     }
-    static final class Parts { RectF body, title, content, grab; float hw, hh; }
+    static final class Parts { RectF body, title, content, grab, scroll; float hw, hh; }
     static final class Hit {
         final int type; final String key; Win win; int index; String id;
         Hit(int t, String k) { type = t; key = k; }
@@ -90,6 +107,7 @@ final class SpatialUi {
         boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy; float wy0, wp0;
         boolean dockDrag, dockMoved, dockHome, kbDrag; float sx, sy, ox, oy;
         int webMode; float wfx, wfy, wlx, wly;      // página: 0 = esperando, 1 = rolando
+        boolean sbDrag; float sbOff; long sbSent;   // barra de rolagem
     }
     static final class Latch {
         boolean down, rel;
@@ -124,6 +142,25 @@ final class SpatialUi {
 
     // toque / mouse
     private float tX, tY; private long tLast = -100000; private final Latch tLatch = new Latch();
+    // QR code visto pela câmera (coordenadas da cena)
+    float qrX, qrY, qrSize; long qrSeen = -100000; String qrText = "";
+    long qrSearchUntil;
+    private float qsx, qsy, qss;      // QR suavizado
+
+    /** O app pede leitura de QR só quando precisa (janela presa ou procurando). */
+    boolean qrWanted(long now) {
+        if (now < qrSearchUntil) return true;
+        for (Win w : wins) if (w.pinned) return true;
+        return false;
+    }
+
+    boolean qrVisible(long now) { return now - qrSeen < 700; }
+
+    void setQr(float x, float y, float size, String text, long stamp) {
+        if (stamp - qrSeen > 700) { qsx = x; qsy = y; qss = size; }
+        qrX = x; qrY = y; qrSize = size; qrText = text == null ? "" : text; qrSeen = stamp;
+    }
+
     // controle (Xbox / Bluetooth)
     final HashSet<Integer> padDown = new HashSet<>();
     float padLX, padLY, padRX, padRY, padLT, padRT;
@@ -190,6 +227,19 @@ final class SpatialUi {
             w.s = (f / .5f) * (1.5f / Math.max(.3f, w.dist)) * cfg.uiScaleEff();
             w.visible = true;
         }
+        // janelas presas ao QR code acompanham o objeto real
+        long nowL = now();
+        if (qrVisible(nowL)) {
+            qsx += (qrX - qsx) * .45f; qsy += (qrY - qsy) * .45f; qss += (qrSize - qss) * .35f;
+        }
+        for (Win w : wins) {
+            if (!w.pinned || w.minimized || (allHidden && cinemaWin == null) || (cinemaWin != null && w != cinemaWin)) continue;
+            float[] q = toSpatial(qsx, qsy);
+            w.cx = q[0] + w.pinDX * qss;
+            w.cy = q[1] + w.pinDY * qss;
+            w.s = Math.max(.05f, w.pinScale * qss);
+            w.visible = nowL - qrSeen < 4000;          // some se o QR ficar muito tempo fora da câmera
+        }
         // dock: fixo no ambiente (modo espacial) ou preso à visão
         dockAnchored = sp && !cfg.dockFollow;
         if (dockAnchored) {
@@ -216,13 +266,28 @@ final class SpatialUi {
     }
 
     int visibleCount() { int k = 0; for (Win w : wins) if (w.visible) k++; return k; }
-    static boolean isWeb(int app) { return app == NAV || app == YOUTUBE; }
+    static boolean isWeb(int app) { return app == NAV || app == YOUTUBE || app == PLAYER; }
 
-    /** Quais navegadores estão à vista (bit 1 = Navegador, bit 2 = YouTube). */
-    int webVisibleMask() {
-        int m = 0;
-        for (Win w : wins) if (w.visible && isWeb(w.app)) m |= w.app == NAV ? 1 : 2;
-        return m;
+    private int nextTab = 100;
+
+    /** Página (WebView) que a janela mostra agora: a aba atual do Navegador, ou o próprio app. */
+    int wid(Win w) {
+        if (w.app == NAV) {
+            if (w.tabs.isEmpty()) w.tabs.add(nextTab++);
+            w.tab = Math.max(0, Math.min(w.tabs.size() - 1, w.tab));
+            return w.tabs.get(w.tab);
+        }
+        return w.app;
+    }
+
+    /** Páginas que estão à vista agora (só essas são copiadas para as janelas). */
+    int[] webVisible() {
+        int n = 0;
+        for (Win w : wins) if (w.visible && isWeb(w.app)) n++;
+        int[] out = new int[n];
+        int i = 0;
+        for (Win w : wins) if (w.visible && isWeb(w.app)) out[i++] = wid(w);
+        return out;
     }
     boolean anyBehind() { for (Win w : wins) if (w.visible && w.behind) return true; return false; }
 
@@ -272,7 +337,7 @@ final class SpatialUi {
         w.minimized = false;
         w.w = 1.8f; w.h = 1.06f; w.dist = 3f;
         cfg.placement = Config.CINEMA;
-        host.webAspect(w.app, contentAspect(w));
+        host.webAspect(wid(w), contentAspect(w));
         say("Modo cinema · B ou o botão da tela saem", now);
     }
 
@@ -282,7 +347,7 @@ final class SpatialUi {
         w.yaw = cinemaBak[0]; w.pitch = cinemaBak[1]; w.dist = cinemaBak[2]; w.w = cinemaBak[3]; w.h = cinemaBak[4];
         cinemaWin = null;
         if (cfg.placement == Config.CINEMA) cfg.placement = Config.ESPACIAL;
-        host.webAspect(w.app, contentAspect(w));
+        host.webAspect(wid(w), contentAspect(w));
     }
 
     boolean cinema() { return cinemaWin != null; }
@@ -316,7 +381,9 @@ final class SpatialUi {
         if (app == CINEMA) { if (cinema()) exitCinema(); else enterCinema(now); return null; }
         allHidden = false;
         Win w = find(app);
-        if (w != null) { w.minimized = false; toFront(w); if (isWeb(app)) host.webOpen(app); return w; }
+        if (app == VOZ) { host.startVoice(); return null; }
+        if (app == MIDIA) host.loadMedia();
+        if (w != null) { w.minimized = false; toFront(w); if (isWeb(app)) host.webOpen(wid(w)); return w; }
         int k = 0;
         for (Win o : wins) if (!o.minimized) k++;
         w = new Win();
@@ -329,13 +396,16 @@ final class SpatialUi {
         w.born = now;
         wins.add(w);
         synth.open();
-        if (isWeb(app)) { host.webOpen(app); host.webAspect(app, contentAspect(w)); }
+        if (isWeb(app)) { host.webOpen(wid(w)); host.webAspect(wid(w), contentAspect(w)); }
         return w;
     }
 
     private void closeWin(Win w) {
         if (w == cinemaWin) exitCinema();
         wins.remove(w);
+        // fecha as páginas da janela (para o vídeo/música não continuar tocando)
+        if (w.app == NAV) { for (int id : w.tabs) host.webClose(id); w.tabs.clear(); }
+        else if (isWeb(w.app)) host.webClose(w.app);
     }
 
     Parts parts(Win w) {
@@ -346,12 +416,13 @@ final class SpatialUi {
         p.title = new RectF(-hw, -hh, hw, -hh + .062f);
         p.content = new RectF(-hw + .022f, -hh + .074f, hw - .022f, hh - .022f);
         p.grab = new RectF(-.075f, hh + .03f, .075f, hh + .05f);
+        p.scroll = new RectF(hw + .016f, -hh + .074f, hw + .046f, hh - .06f);   // barra de rolagem (navegadores)
         return p;
     }
 
     private float contentAspect(Win w) {
         Parts P = parts(w);
-        RectF a = navArea(P);
+        RectF a = navArea(w, P);
         return a.width() / Math.max(.01f, a.height());
     }
 
@@ -456,7 +527,8 @@ final class SpatialUi {
         return null;
     }
 
-    private int kbWeb() { return kbWin != null && isWeb(kbWin.app) ? kbWin.app : NAV; }
+    private int kbWeb() { return kbWin != null && isWeb(kbWin.app) ? wid(kbWin) : NAV; }
+    private boolean kbYoutube() { return kbWin != null && kbWin.app == YOUTUBE; }
 
     private void kbType(String s) {
         if (kbTarget == T_WEB) { host.webInsert(kbWeb(), s); return; }
@@ -486,7 +558,7 @@ final class SpatialUi {
                 if (kbTarget == T_WEB) host.webKey(kbWeb(), Host.KEY_ENTER);
                 else if (kbTarget == T_URL) {
                     String u = urlBuf.toString().trim();
-                    if (!u.isEmpty()) host.webLoad(kbWeb(), kbWeb() == YOUTUBE ? youtubeUrl(u) : normalizeUrl(u));
+                    if (!u.isEmpty()) openUrl(kbWin, kbYoutube() ? youtubeUrl(u) : normalizeUrl(u));
                     kbOpen = false;
                     say("Abrindo…", now);
                 } else kbType("\n");
@@ -663,6 +735,13 @@ final class SpatialUi {
             if (wx > gb.left - .03f && wx < gb.right + .03f && wy > gb.top - .025f && wy < gb.bottom + .025f) {
                 Hit h = new Hit(H_GRAB, "grab:" + w.id); h.win = w; return h;
             }
+            if (isWeb(w.app)) {
+                RectF sb = P.scroll;
+                float e = .014f * hs;
+                if (wx > sb.left - e && wx < sb.right + e && wy > sb.top - e && wy < sb.bottom + e) {
+                    Hit h = new Hit(H_SCROLL, "scroll:" + w.id); h.win = w; return h;
+                }
+            }
             if (Math.hypot(wx - P.hw, wy - P.hh) < .04f * hs) { Hit h = new Hit(H_RESIZE, "resize:" + w.id); h.win = w; return h; }
             if (P.body.contains(wx, wy)) {
                 for (Btn bt : buttons(w, P)) if (bt.hit(wx, wy, hs)) {
@@ -700,6 +779,30 @@ final class SpatialUi {
                 { float[] q0 = toSpatial(p.x, p.y); p.kbDrag = true; p.sx = q0[0]; p.sy = q0[1]; p.ox = kbCX; p.oy = kbCY; }
                 break;
             case H_KBCLOSE: synth.click(); kbOpen = false; break;
+            case H_SCROLL: {
+                toFront(h.win);
+                Win w = h.win;
+                float fy = sbFrac(w, p);
+                float[] th = thumb(w);
+                if (th == null) {
+                    p.sbDrag = true; p.sbOff = fy;                     // sem medida: arrasta por diferença
+                } else if (fy >= th[0] - .03f && fy <= th[0] + th[1] + .03f) {
+                    p.sbDrag = true; p.sbOff = fy - th[0];             // pegou a barrinha: arrasta
+                    synth.hover();
+                } else {
+                    // clicou no trilho: pula uma tela para cima ou para baixo
+                    synth.click();
+                    float[] m = host.webMetrics(wid(w));
+                    if (m != null && th != null) {
+                        float range = Math.max(1, m[1] - m[2]);
+                        float cur = m[0] / range, step = m[2] * .9f / range;
+                        float to = Gfx.clamp(cur + (fy < th[0] ? -step : step), 0, 1);
+                        host.webScrollTo(wid(w), to);
+                        w.sbFrac = to; w.sbHoldUntil = now + 500;
+                    } else host.webScroll(wid(w), 0, fy < .5f ? -420 : 420);
+                }
+                break;
+            }
             case H_KEY: {
                 List<Key> keys = kbKeys();
                 if (h.index < keys.size()) { synth.click(); kbFlash[h.index] = now; kbKey(keys.get(h.index), now); }
@@ -724,9 +827,14 @@ final class SpatialUi {
                 float[] l = local(w, p.x, p.y);
                 if (w.app == DESENHO) {
                     Stroke s = new Stroke(); s.c = w.pen; s.pts.add(l); w.strokes.add(s);
+                } else if (w.app == NAVE) {
+                    RectF C = parts(w).content;
+                    w.shipTarget = Gfx.clamp((l[0] - C.centerX()) / C.width(), -.45f, .45f);
+                    w.firing = true;
+                    gameFire(w);
                 } else if (isWeb(w.app)) {
                     // ainda não sabemos se é clique ou rolagem: decide ao mexer ou soltar
-                    RectF a = navArea(parts(w));
+                    RectF a = navArea(w, parts(w));
                     p.webMode = 0;
                     p.wfx = p.wlx = (l[0] - a.left) / a.width();
                     p.wfy = p.wly = (l[1] - a.top) / a.height();
@@ -753,6 +861,24 @@ final class SpatialUi {
             case "min": if (w == cinemaWin) exitCinema(); w.minimized = true; break;
             case "far": w.dist = Math.min(4.5f, w.dist + .25f); say(String.format(Locale.US, "Distância: %.2f m", w.dist), now); break;
             case "near": w.dist = Math.max(cfg.minDist, w.dist - .25f); say(String.format(Locale.US, "Distância: %.2f m", w.dist), now); break;
+            case "pin":
+                if (w.pinned) {
+                    // solta: a janela fica no ambiente, onde estava
+                    float ry = (float) Math.atan(w.cx / f), rp = (float) Math.atan(w.cy / f);
+                    if (spatial()) { w.yaw = HeadTracker.wrap(ry + headYaw); w.pitch = headPitch - rp; } else { w.yaw = ry; w.pitch = -rp; }
+                    w.dist = Gfx.clamp((f / .5f) * 1.5f * cfg.uiScaleEff() / Math.max(.05f, w.s), cfg.minDist, 4.5f);
+                    w.pinned = false;
+                    say("Janela solta", now);
+                } else if (qrVisible(now) && cfg.background == Config.BG_CAMERA) {
+                    float[] q = toSpatial(qsx, qsy);
+                    w.pinDX = (w.cx - q[0]) / qss; w.pinDY = (w.cy - q[1]) / qss; w.pinScale = w.s / qss;
+                    w.pinned = true;
+                    say("Janela presa no QR code" + (qrText.isEmpty() ? "" : " (" + qrText + ")"), now);
+                } else {
+                    qrSearchUntil = now + 10000;
+                    say(cfg.background == Config.BG_CAMERA ? "Aponte a câmera para um QR code e aperte de novo" : "Use o fundo Câmera para prender em QR codes", now);
+                }
+                break;
             case "layer":
                 w.behind = !w.behind;
                 say(w.behind ? (cfg.segMode == Config.SEG_OFF ? "Atrás da pessoa (ligue o recorte de pessoas em Ajustes)" : "Janela atrás da pessoa")
@@ -762,7 +888,40 @@ final class SpatialUi {
         }
     }
 
+    /** Onde o ponteiro está no trilho da barra (0 = topo, 1 = fim). */
+    private float sbFrac(Win w, Ptr p) {
+        RectF sb = parts(w).scroll;
+        float[] l = local(w, p.x, p.y);
+        return Gfx.clamp((l[1] - sb.top) / sb.height(), 0, 1);
+    }
+
+    /** [início, tamanho] da barrinha no trilho (0..1), ou null se a página não rola / ainda não se sabe. */
+    private float[] thumb(Win w) {
+        float[] m = host.webMetrics(wid(w));
+        if (m == null) return null;
+        float len = Gfx.clamp(m[2] / m[1], .1f, 1f);
+        float pos = w.sbFrac >= 0 && now() < w.sbHoldUntil ? w.sbFrac : Gfx.clamp(m[0] / Math.max(1, m[1] - m[2]), 0, 1);
+        return new float[]{pos * (1 - len), len};
+    }
+
     private void hold(Ptr p) {
+        if (p.sbDrag && p.hit != null && p.hit.win != null) {
+            Win w = p.hit.win;
+            float[] th = thumb(w);
+            if (th == null) {
+                // ainda sem a medida da página: arrastar a barra rola pelo "dedo virtual"
+                float fy = sbFrac(w, p);
+                int dy = Math.round((fy - p.sbOff) * 3000);
+                if (dy != 0) { host.webScroll(wid(w), 0, dy); p.sbOff = fy; }
+                return;
+            }
+            float top = Gfx.clamp(sbFrac(w, p) - p.sbOff, 0, 1 - th[1]);
+            float frac = th[1] >= .999f ? 0 : top / (1 - th[1]);
+            w.sbFrac = frac; w.sbHoldUntil = now() + 600;
+            long t = now();
+            if (t - p.sbSent > 40) { p.sbSent = t; host.webScrollTo(wid(w), frac); }
+            return;
+        }
         if (p.dockDrag) {
             float[] q = dockAnchored ? toSpatial(p.x, p.y) : new float[]{p.x, p.y};
             float dx = q[0] - p.sx, dy = q[1] - p.sy;
@@ -803,13 +962,18 @@ final class SpatialUi {
         if (p.hit != null && p.hit.type == H_AREA && wins.contains(p.hit.win)) {
             Win w = p.hit.win;
             float[] l = local(w, p.x, p.y);
+            if (w.app == NAVE) {
+                RectF C = parts(w).content;
+                w.shipTarget = Gfx.clamp((l[0] - C.centerX()) / C.width(), -.45f, .45f);
+                return;
+            }
             if (w.app == DESENHO) {
                 if (w.strokes.isEmpty()) return;
                 Stroke s = w.strokes.get(w.strokes.size() - 1);
                 float[] last = s.pts.get(s.pts.size() - 1);
                 if (Math.hypot(l[0] - last[0], l[1] - last[1]) > .002f && s.pts.size() < 1500) s.pts.add(l);
             } else if (isWeb(w.app)) {
-                RectF a = navArea(parts(w));
+                RectF a = navArea(w, parts(w));
                 float fx = (l[0] - a.left) / a.width(), fy = (l[1] - a.top) / a.height();
                 if (p.webMode == 0 && Math.hypot((fx - p.wfx) * a.width(), (fy - p.wfy) * a.height()) > .018f) {
                     p.webMode = 1;                       // mexeu: vira rolagem
@@ -818,25 +982,28 @@ final class SpatialUi {
                 if (p.webMode == 1) {
                     float pageW = WebPane.WIDTH, pageH = WebPane.WIDTH / Math.max(.3f, a.width() / a.height());
                     int dx = Math.round((p.wlx - fx) * pageW * 1.6f), dy = Math.round((p.wly - fy) * pageH * 1.6f);
-                    if (dx != 0 || dy != 0) { host.webScroll(w.app, dx, dy); p.wlx = fx; p.wly = fy; }
+                    if (dx != 0 || dy != 0) { host.webScroll(wid(w), dx, dy); p.wlx = fx; p.wly = fy; }
                 }
             }
         }
     }
 
     private void release(Ptr p) {
+        if (p.hit != null && p.hit.type == H_AREA && p.hit.win != null && p.hit.win.app == NAVE) p.hit.win.firing = false;
         if (p.hit != null && p.hit.type == H_AREA && p.hit.win != null && isWeb(p.hit.win.app) && p.webMode == 0) {
             // não mexeu: é um clique no ponto onde começou
             Win w = p.hit.win;
-            host.webTouch(w.app, MotionEvent.ACTION_DOWN, p.wfx, p.wfy);
-            host.webTouch(w.app, MotionEvent.ACTION_UP, p.wfx, p.wfy);
+            host.webTouch(wid(w), MotionEvent.ACTION_DOWN, p.wfx, p.wfy);
+            host.webTouch(wid(w), MotionEvent.ACTION_UP, p.wfx, p.wfy);
         }
         p.webMode = 0;
-        if (p.resize != null && isWeb(p.resize.app)) host.webAspect(p.resize.app, contentAspect(p.resize));
+        if (p.resize != null && isWeb(p.resize.app)) host.webAspect(wid(p.resize), contentAspect(p.resize));
         if (p.dockDrag) {
             if (!p.dockMoved && p.dockHome) toggleWindows(now());
             else if (p.dockMoved) { host.configChanged(); say("Dock movido", now()); }
         }
+        if (p.sbDrag && p.hit != null && p.hit.win != null && p.hit.win.sbFrac >= 0) host.webScrollTo(wid(p.hit.win), p.hit.win.sbFrac);
+        p.sbDrag = false;
         p.dockDrag = false; p.dockMoved = false; p.dockHome = false; p.kbDrag = false;
         p.drag = null; p.resize = null; p.hit = null; p.down = false;
     }
@@ -953,6 +1120,7 @@ final class SpatialUi {
                 if (down) { gazeX = 0; gazeY = 0; say("Mira no centro", now); }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_THUMBR:
+                if (down) host.startVoice();                    // R3: comando de voz
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT: if (down) { gazeX = Gfx.clamp(gazeX - .03f, -.4f, .4f); gazeForced = true; } return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT: if (down) { gazeX = Gfx.clamp(gazeX + .03f, -.4f, .4f); gazeForced = true; } return true;
@@ -960,12 +1128,225 @@ final class SpatialUi {
                 if (!down) return true;
                 int dir = code == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1;
                 Win w = target();
-                if (w != null && isWeb(w.app)) host.webScroll(w.app, 0, dir * 260);       // rola a página
+                if (w != null && isWeb(w.app)) host.webScroll(wid(w), 0, dir * 260);       // rola a página
                 else { gazeY = Gfx.clamp(gazeY + dir * .03f, -.4f, .4f); gazeForced = true; }
                 return true;
             }
             default: return false;
         }
+    }
+
+    /* ================= arrumação das janelas ================= */
+
+    volatile String layoutCache = "";
+    private long lastLayoutSave;
+
+    /** Janelas abertas em texto (uma por linha): app;yaw;pitch;dist;w;h;minimizada;aba;endereços. */
+    private String layoutString() {
+        StringBuilder b = new StringBuilder();
+        for (Win w : wins) {
+            if (w.app == PLAYER || w == cinemaWin) continue;
+            b.append(w.app).append(';').append(w.yaw).append(';').append(w.pitch).append(';').append(w.dist).append(';')
+                    .append(w.w).append(';').append(w.h).append(';').append(w.minimized ? 1 : 0).append(';').append(w.tab).append(';');
+            if (w.app == NAV) {
+                for (int i = 0; i < w.tabs.size(); i++) {
+                    if (i > 0) b.append('\u0001');
+                    String u = host.webIsHome(w.tabs.get(i)) ? "" : host.webUrl(w.tabs.get(i));
+                    b.append(u == null ? "" : u.replace(";", "%3B").replace("\n", ""));
+                }
+            } else if (w.app == YOUTUBE) {
+                String u = host.webUrl(YOUTUBE);
+                b.append(u == null ? "" : u.replace(";", "%3B").replace("\n", ""));
+            }
+            b.append('\n');
+        }
+        return b.toString();
+    }
+
+    /** Reabre as janelas como estavam (posições relativas à frente atual). */
+    void restoreLayout(String text, long now) {
+        if (text == null || text.trim().isEmpty() || !wins.isEmpty()) return;
+        boolean wasSpatial = spatial();
+        for (String line : text.split("\n")) {
+            try {
+                String[] f = line.split(";", -1);
+                if (f.length < 8) continue;
+                int app = Integer.parseInt(f[0]);
+                if (app < 0 || app >= NAMES.length || app == VOZ || app == CINEMA) continue;
+                Win w = new Win();
+                w.id = ++wid; w.app = app;
+                w.yaw = Float.parseFloat(f[1]); w.pitch = Float.parseFloat(f[2]); w.dist = Float.parseFloat(f[3]);
+                w.w = Float.parseFloat(f[4]); w.h = Float.parseFloat(f[5]);
+                w.minimized = "1".equals(f[6]);
+                w.born = now;
+                if (!wasSpatial) { w.yaw = Gfx.clamp(w.yaw, -.6f, .6f); w.pitch = Gfx.clamp(w.pitch, -.4f, .4f); }
+                wins.add(w);
+                String urls = f.length > 8 ? f[8] : "";
+                if (app == NAV) {
+                    String[] us = urls.split("\u0001", -1);
+                    for (String u : us) {
+                        w.tabs.add(nextTab++);
+                        int id = w.tabs.get(w.tabs.size() - 1);
+                        host.webOpen(id);
+                        if (!u.isEmpty()) { String uu = u.replace("%3B", ";"); if (needsDesktop(uu)) host.webDesktop(id, true); host.webLoad(id, uu); }
+                    }
+                    w.tab = Math.max(0, Math.min(w.tabs.size() - 1, Integer.parseInt(f[7])));
+                    host.webAspect(wid(w), contentAspect(w));
+                } else if (app == YOUTUBE) {
+                    host.webOpen(YOUTUBE);
+                    if (!urls.isEmpty()) host.webLoad(YOUTUBE, urls.replace("%3B", ";"));
+                    host.webAspect(YOUTUBE, contentAspect(w));
+                } else if (app == MIDIA) host.loadMedia();
+            } catch (Throwable ignored) { }
+        }
+        if (!wins.isEmpty()) say("Suas janelas voltaram onde estavam", now);
+    }
+
+    /* ================= jogo: Nave ================= */
+
+    private void gameReset(Win w) {
+        w.shots.clear(); w.rocks.clear();
+        w.score = 0; w.lives = 3; w.over = false; w.shipX = 0; w.spawn = 0; w.hurt = 0;
+    }
+
+    private void gameFire(Win w) {
+        if (w.over) { gameReset(w); return; }
+        if (w.fireT > 0) return;
+        w.fireT = .22f;
+        w.shots.add(new float[]{w.shipX, 0});
+        synth.click();
+    }
+
+    /** Atualiza o jogo (coordenadas: x de -0.5 a 0.5, y de 0 = nave a 1 = topo). */
+    private void updateGame(Win w, float dt, long now) {
+        if (w.over) return;
+        // controle: analógico esquerdo move a nave quando o jogo está na mira
+        boolean aimed = target() == w;
+        if (aimed && padActive(now) && Math.abs(padLX) > .15f) w.shipX += padLX * 1.1f * dt;
+        else if (!Float.isNaN(w.shipTarget)) w.shipX += (w.shipTarget - w.shipX) * Math.min(1, dt * 10);
+        w.shipX = Gfx.clamp(w.shipX, -.45f, .45f);
+        boolean padFire = aimed && (padDown.contains(KeyEvent.KEYCODE_BUTTON_A) || padRT > .5f);
+        w.fireT -= dt;
+        if (w.firing || padFire) gameFire(w);
+        w.hurt = Math.max(0, w.hurt - dt);
+        // meteoros caindo cada vez mais rápido
+        float speed = .22f + Math.min(.5f, w.score * .006f);
+        w.spawn -= dt;
+        if (w.spawn <= 0) { w.spawn = Math.max(.35f, 1.1f - w.score * .01f); w.rocks.add(new float[]{rnd.nextFloat() * .9f - .45f, 1.05f, .025f + rnd.nextFloat() * .03f, rnd.nextFloat() * 6.28f}); }
+        for (Iterator<float[]> it = w.shots.iterator(); it.hasNext(); ) { float[] b = it.next(); b[1] += 1.4f * dt; if (b[1] > 1.1f) it.remove(); }
+        for (Iterator<float[]> it = w.rocks.iterator(); it.hasNext(); ) {
+            float[] r = it.next();
+            r[1] -= speed * dt; r[3] += dt;
+            boolean hit = false;
+            for (Iterator<float[]> is = w.shots.iterator(); is.hasNext(); ) {
+                float[] b = is.next();
+                if (Math.hypot(b[0] - r[0], (b[1] - r[1]) * .6f) < r[2] + .012f) { is.remove(); hit = true; break; }
+            }
+            if (hit) { it.remove(); w.score++; synth.pop(); continue; }
+            if (r[1] < .06f && Math.abs(r[0] - w.shipX) < r[2] + .03f) {
+                it.remove(); w.lives--; w.hurt = .5f; synth.note(0);
+                if (w.lives <= 0) { w.over = true; w.best = Math.max(w.best, w.score); w.firing = false; }
+                continue;
+            }
+            if (r[1] < -.05f) it.remove();
+        }
+    }
+
+    private void drawGame(Win w, Parts P, long now) {
+        RectF C = P.content;
+        g.c.save();
+        g.clipRound(C, .016f);
+        g.fill.setColor(0xFF070A1A);
+        g.c.drawRect(C, g.fill);
+        float t = now / 1000f;
+        for (int i = 0; i < 40; i++) {                                   // estrelas passando
+            float sx = C.left + ((i * 73) % 100) / 100f * C.width();
+            float sy = C.top + (((i * 37) % 100) / 100f + t * (.05f + (i % 3) * .03f)) % 1f * C.height();
+            g.circle(sx, sy, .0015f + (i % 3) * .0008f, 0x99FFFFFF);
+        }
+        float gw = C.width(), gh = C.height() - .03f, ox = C.centerX(), oy = C.bottom - .03f;
+        for (float[] b : w.shots) { g.fill.setColor(0xFF7CF3FF); g.c.drawRoundRect(new RectF(ox + b[0] * gw - .003f, oy - b[1] * gh - .016f, ox + b[0] * gw + .003f, oy - b[1] * gh), .003f, .003f, g.fill); }
+        for (float[] r : w.rocks) {
+            float rx = ox + r[0] * gw, ry = oy - r[1] * gh, rr = r[2] * gw;
+            g.c.save(); g.c.rotate((float) Math.toDegrees(r[3]), rx, ry);
+            g.fill.setColor(0xFF8A6A55);
+            g.c.drawRoundRect(new RectF(rx - rr, ry - rr * .85f, rx + rr, ry + rr * .85f), rr * .6f, rr * .6f, g.fill);
+            g.circle(rx - rr * .3f, ry - rr * .2f, rr * .22f, 0xFF6B5142);
+            g.c.restore();
+        }
+        if (!w.over) {
+            float sx = ox + w.shipX * gw, sy = oy;
+            if (w.hurt <= 0 || (now / 80) % 2 == 0) {
+                Path sh = new Path();
+                sh.moveTo(sx, sy - .045f); sh.lineTo(sx + .028f, sy + .012f); sh.lineTo(sx, sy); sh.lineTo(sx - .028f, sy + .012f); sh.close();
+                g.fill.setColor(0xFFE8F1FF);
+                g.c.drawPath(sh, g.fill);
+                g.circle(sx, sy - .018f, .006f, 0xFF6EE7F9);
+                g.circle(sx, sy + .008f, .006f + .003f * (float) Math.sin(now / 40.0), 0xCCFF9F43);
+            }
+        }
+        g.c.restore();
+        g.txt("Pontos " + w.score, C.left + .02f, C.top + .022f, .018f, Color.WHITE, Paint.Align.LEFT, g.medium);
+        StringBuilder hearts = new StringBuilder();
+        for (int i = 0; i < w.lives; i++) hearts.append("♥ ");
+        g.txt(hearts.toString().trim(), C.right - .02f, C.top + .022f, .018f, 0xFFFF6B6B, Paint.Align.RIGHT, g.medium);
+        if (w.over) {
+            g.txt("Fim de jogo", C.centerX(), C.centerY() - .04f, .04f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            g.txt("Pontos: " + w.score + "   ·   Recorde: " + w.best, C.centerX(), C.centerY() + .01f, .018f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
+            g.txt("Aperte A (ou faça a pinça) para jogar de novo", C.centerX(), C.centerY() + .05f, .016f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+        } else if (w.score == 0 && w.rocks.size() < 2)
+            g.txt("Analógico ou mira move · A ou pinça atira", C.centerX(), C.centerY(), .016f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+    }
+
+    /* ================= comando de voz ================= */
+
+    private static String plain(String t) {
+        String n = java.text.Normalizer.normalize(t.toLowerCase(new Locale("pt", "BR")), java.text.Normalizer.Form.NFD);
+        return n.replaceAll("\\p{M}", "").trim();
+    }
+
+    private static final Object[][] VOICE_APPS = {
+            {NAV, "navegador", "internet", "chrome", "google"}, {YOUTUBE, "youtube"}, {MIDIA, "midia", "videos", "musicas", "player"},
+            {GALERIA, "galeria", "fotos"}, {CAMERA, "camera"}, {AJUSTES, "ajustes", "configuracoes", "configuracao"},
+            {ARQUIVOS, "arquivos"}, {MENU, "menu", "aplicativos", "apps"}, {RELOGIO, "relogio", "hora"}, {DESENHO, "desenho"},
+            {BOLHAS, "bolhas"}, {MUSICA, "piano", "teclas"}, {NOTAS, "notas", "bloco"}, {CONTROLE, "controle"},
+            {NAVE, "nave", "jogo"}, {WEB, "sites", "web"}};
+
+    /** Executa o que a pessoa falou (ou digita, se o teclado estiver aberto). */
+    void voiceCommand(String text, long now) {
+        if (text == null || text.trim().isEmpty()) return;
+        if (kbOpen) { kbType(text); say("Ditado: " + text, now); return; }
+        String t = plain(text);
+        String[] go = {"abrir ", "abre ", "abra ", "mostrar ", "ir para ", "entrar no ", "entrar na "};
+        for (String g0 : go) if (t.startsWith(g0)) {
+            String what = t.substring(g0.length()).replaceFirst("^(o |a |os |as )", "");
+            for (Object[] e : VOICE_APPS) for (int i = 1; i < e.length; i++)
+                if (what.startsWith((String) e[i])) { openApp((Integer) e[0], now); say("Abrindo " + NAMES[(Integer) e[0]], now); return; }
+            openInNewTab(normalizeUrl(what.replace(" ponto ", ".").replace(" ", "")), now);
+            return;
+        }
+        String[] search = {"pesquisar ", "pesquise ", "procurar ", "procure ", "buscar ", "busque ", "tocar ", "toque ", "assistir "};
+        for (String s0 : search) if (t.startsWith(s0)) {
+            String q = text.trim().substring(Math.min(text.trim().length(), s0.length())).trim();
+            boolean yt = t.contains("youtube") || s0.startsWith("toc") || s0.startsWith("assist");
+            q = q.replaceAll("(?i)\\s*(no|na) youtube\\s*$", "").replaceAll("(?i)\\s*(no|na) (google|internet)\\s*$", "");
+            if (yt) { Win y = openApp(YOUTUBE, now); if (y != null) openUrl(y, youtubeUrl(q)); }
+            else openInNewTab(normalizeUrl(q), now);
+            say("Pesquisando: " + q, now);
+            return;
+        }
+        if (t.startsWith("fechar tudo") || t.startsWith("feche tudo")) { for (Win w : new ArrayList<>(wins)) closeWin(w); say("Tudo fechado", now); return; }
+        if (t.startsWith("fechar") || t.startsWith("feche")) { Win w = target(); if (w != null) closeWin(w); return; }
+        if (t.startsWith("minimizar")) { Win w = target(); if (w != null) w.minimized = true; return; }
+        if (t.contains("centraliz") || t.equals("centro")) { host.recenter(); return; }
+        if (t.startsWith("sair do cinema")) { exitCinema(); return; }
+        if (t.contains("cinema")) { enterCinema(now); return; }
+        if (t.startsWith("parar") && host.isRecording()) { host.stopRecording(); say("Gravação salva", now); return; }
+        if (t.contains("gravar") || t.contains("gravacao")) { if (!host.isRecording()) host.startRecording(); say("Gravando…", now); return; }
+        if (t.contains("foto")) { Bitmap fr = frame; if (fr != null) { host.savePhoto(fr); synth.shutter(); say("Foto salva", now); } return; }
+        if (t.contains("teclado")) { toggleKeyboard(now); return; }
+        if (t.startsWith("voltar")) { Win w = target(); if (w != null && isWeb(w.app)) host.webBack(wid(w)); return; }
+        say("Não entendi: “" + text + "”", now);
     }
 
     /** Analógicos e gatilhos do controle (chegam a cada movimento). */
@@ -1044,10 +1425,12 @@ final class SpatialUi {
         if (Math.abs(hatY) > .5f && now - hatRepeat > 140) {          // setinha segurada: continua rolando
             hatRepeat = now;
             Win w = target();
-            if (w != null && isWeb(w.app)) host.webScroll(w.app, 0, (hatY > 0 ? 1 : -1) * 220);
+            if (w != null && isWeb(w.app)) host.webScroll(wid(w), 0, (hatY > 0 ? 1 : -1) * 220);
         }
         final float dz = .18f;
-        float lx = Math.abs(padLX) > dz ? padLX : 0, ly = Math.abs(padLY) > dz ? padLY : 0;
+        Win tw0 = target();
+        boolean game = tw0 != null && tw0.app == NAVE && !tw0.over;
+        float lx = !game && Math.abs(padLX) > dz ? padLX : 0, ly = !game && Math.abs(padLY) > dz ? padLY : 0;
         if (lx != 0 || ly != 0) {
             gazeX = Gfx.clamp(gazeX + lx * Math.abs(lx) * .55f * dt, -.4f, .4f);
             gazeY = Gfx.clamp(gazeY + ly * Math.abs(ly) * .55f * dt, -.4f, .4f);
@@ -1059,7 +1442,7 @@ final class SpatialUi {
                 scrollAccX += rx * Math.abs(rx) * 1900 * dt;
                 scrollAccY += ry * Math.abs(ry) * 1900 * dt;
                 if (now - lastScroll > 33) {
-                    host.webScroll(w.app, Math.round(scrollAccX), Math.round(scrollAccY));
+                    host.webScroll(wid(w), Math.round(scrollAccX), Math.round(scrollAccY));
                     scrollAccX = 0; scrollAccY = 0; lastScroll = now;
                 }
             } else if (w != null && (w.app == GALERIA || w.app == ARQUIVOS) && now - lastScroll > 350 && Math.abs(rx) > .6f) {
@@ -1071,7 +1454,7 @@ final class SpatialUi {
     }
 
     /** Navegador na frente (NAV ou YOUTUBE) ou -1. */
-    int webFocusId() { Win w = front(); return w != null && isWeb(w.app) ? w.app : -1; }
+    int webFocusId() { Win w = front(); return w != null && isWeb(w.app) ? wid(w) : -1; }
 
     void update(long now, float dt) {
         layout();
@@ -1105,6 +1488,7 @@ final class SpatialUi {
             if (h != null) { hov.add(h.key); if (i == 3 && clickable(h)) gazeKey = h.key; }
             if (p.drag != null) hov.add("grab:" + p.drag.id);
             if (p.resize != null) hov.add("resize:" + p.resize.id);
+            if (p.sbDrag && p.hit != null) hov.add(p.hit.key);
             if (p.dockDrag) hov.add("home");
             if (p.kbDrag) hov.add("kbgrab");
         }
@@ -1126,18 +1510,20 @@ final class SpatialUi {
         for (int i = 0; i < 2; i++) if (handActive(i, now)) tips.add(toSpatial(hands[i].x[8], hands[i].y[8]));
         if (tLatch.down) tips.add(toSpatial(tX, tY));
         for (Win w : new ArrayList<>(wins)) if (w.app == BOLHAS && w.visible) updateBubbles(w, parts(w), dt, tips);
+        for (Win w : wins) if (w.app == NAVE && w.visible) updateGame(w, dt, now);
+        if (now - lastLayoutSave > 2000) { lastLayoutSave = now; layoutCache = layoutString(); }
     }
 
     /* ================= botões dos apps ================= */
 
-    private RectF navArea(Parts P) {
+    private RectF navArea(Win w, Parts P) {
         RectF C = P.content;
-        return new RectF(C.left, C.top + .056f, C.right, C.bottom);
+        return new RectF(C.left, C.top + (w.app == NAV ? .096f : .056f), C.right, C.bottom);
     }
 
     private RectF area(Win w, Parts P) {
-        if (w.app == DESENHO) return P.content;
-        if (isWeb(w.app)) return navArea(P);
+        if (w.app == DESENHO || w.app == NAVE) return P.content;
+        if (isWeb(w.app)) return navArea(w, P);
         return null;
     }
 
@@ -1147,13 +1533,64 @@ final class SpatialUi {
         ArrayList<Btn> out = new ArrayList<>();
         RectF B = P.body, C = P.content;
         switch (w.app) {
-            case NAV: case YOUTUBE: {
+            case NAV: case YOUTUBE: case PLAYER: {
                 float y = C.top + .024f;
+                boolean nav = w.app == NAV;
                 out.add(new Btn("back", C.left + .022f, y, .018f));
                 out.add(new Btn("reload", C.left + .066f, y, .018f));
-                out.add(new Btn("addr", new RectF(C.left + .1f, y - .019f, C.right - .104f, y + .019f)));
+                float left = C.left + .1f, right = C.right - .104f;
+                if (nav) { out.add(new Btn("home", C.left + .11f, y, .018f)); left = C.left + .144f; right = C.right - .148f;
+                           out.add(new Btn("star", C.right - .11f, y, .018f)); }
+                out.add(new Btn("addr", new RectF(left, y - .019f, right, y + .019f)));
                 out.add(new Btn("kb", C.right - .066f, y, .018f));
                 out.add(new Btn("cine", C.right - .022f, y, .018f));
+                if (nav) {
+                    // abas
+                    float ty = C.top + .07f, th = .034f;
+                    int n = w.tabs.size();
+                    float avail = C.width() - .1f, tw = Math.min(.2f, (avail - .04f) / Math.max(1, n));
+                    for (int i = 0; i < n; i++) {
+                        float x = C.left + i * tw;
+                        out.add(new Btn("tb" + i, new RectF(x, ty - th / 2, x + tw - .006f, ty + th / 2)));
+                    }
+                    out.add(new Btn("tn", C.left + n * tw + .018f, ty, .015f));
+                    out.add(new Btn("tx", C.right - .066f, ty, .015f));
+                    out.add(new Btn("pc", C.right - .022f, ty, .015f));
+                    // página inicial: favoritos e recentes
+                    if (host.webIsHome(wid(w))) {
+                        RectF a = navArea(w, P);
+                        List<String[]> favs = favorites();
+                        int cols = 4, nf = Math.min(8, favs.size());
+                        float gx = .012f, cw = (a.width() - .04f - gx * (cols - 1)) / cols, chh = .075f;
+                        for (int i = 0; i < nf; i++) {
+                            float x = a.left + .02f + (i % cols) * (cw + gx), yy = a.top + .05f + (i / cols) * (chh + gx);
+                            out.add(new Btn("fv" + i, new RectF(x, yy, x + cw, yy + chh)));
+                        }
+                        List<String[]> his = host.history();
+                        float hy = a.top + .05f + 2 * (chh + gx) + .05f, rh = .042f;
+                        int nh = Math.min(his.size(), Math.max(0, (int) ((a.bottom - hy - .01f) / rh)));
+                        for (int i = 0; i < nh; i++) out.add(new Btn("hs" + i, new RectF(a.left + .02f, hy + i * rh, a.right - .02f, hy + i * rh + rh - .006f)));
+                    }
+                }
+                break;
+            }
+            case MIDIA: {
+                out.add(new Btn("mk0", new RectF(C.left, C.top, C.left + .14f, C.top + .04f)));
+                out.add(new Btn("mk1", new RectF(C.left + .15f, C.top, C.left + .29f, C.top + .04f)));
+                if (!host.mediaAllowed()) {
+                    out.add(new Btn("perm", new RectF(C.centerX() - .16f, C.centerY() - .025f, C.centerX() + .16f, C.centerY() + .025f)));
+                    break;
+                }
+                List<Host.MediaItem> items = host.mediaList(w.mediaKind);
+                float rh = .05f, top = C.top + .055f;
+                int per = Math.max(1, (int) ((C.bottom - .05f - top) / rh));
+                int start = w.page * per;
+                for (int i = 0; i < per && start + i < items.size(); i++) {
+                    float y = top + i * rh;
+                    out.add(new Btn("mi" + (start + i), new RectF(C.left, y, C.right, y + rh - .006f)));
+                }
+                out.add(new Btn("pprev", C.right - .085f, C.bottom - .025f, .019f));
+                out.add(new Btn("pnext", C.right - .025f, C.bottom - .025f, .019f));
                 break;
             }
             case NOTAS:
@@ -1193,7 +1630,7 @@ final class SpatialUi {
                 break;
             }
             case WEB: {
-                float gap = .016f, cw = (C.width() - gap * 2) / 3, chh = (C.height() - gap) / 2;
+                float gap = .014f, cw = (C.width() - gap * 2) / 3, chh = (C.height() - gap * 2) / 3;
                 for (int i = 0; i < SITES.length; i++) {
                     float x = C.left + (i % 3) * (cw + gap), y = C.top + (i / 3) * (chh + gap);
                     out.add(new Btn("s" + i, new RectF(x, y, x + cw, y + chh)));
@@ -1201,8 +1638,8 @@ final class SpatialUi {
                 break;
             }
             case MENU: {
-                int cols = 6;
-                float cw = C.width() / cols, chh = C.height() / 2;
+                int cols = 6, rowsN = (MENU_APPS.length + cols - 1) / cols;
+                float cw = C.width() / cols, chh = C.height() / rowsN;
                 for (int i = 0; i < MENU_APPS.length; i++) {
                     float x = C.left + (i % cols) * cw + cw / 2, y = C.top + (i / cols) * chh + chh * .42f;
                     out.add(new Btn("m" + i, x, y, Math.min(cw, chh) * .3f));
@@ -1251,13 +1688,42 @@ final class SpatialUi {
     private void pressBtn(Win w, String id, long now) {
         synth.click();
         switch (w.app) {
-            case NAV: case YOUTUBE:
-                if (id.equals("back")) host.webBack(w.app);
-                else if (id.equals("reload")) host.webReload(w.app);
+            case NAV: case YOUTUBE: case PLAYER:
+                if (id.equals("home")) host.webHome(wid(w));
+                else if (id.equals("star")) {
+                    String u = host.webUrl(wid(w));
+                    if (u == null || u.isEmpty() || host.webIsHome(wid(w))) say("Abra uma página para favoritar", now);
+                    else say(host.toggleFavorite(host.webTitle(wid(w)), u) ? "Adicionado aos favoritos ★" : "Removido dos favoritos", now);
+                }
+                else if (id.startsWith("tb")) { w.tab = Integer.parseInt(id.substring(2)); host.webOpen(wid(w)); host.webAspect(wid(w), contentAspect(w)); }
+                else if (id.equals("tn")) newTab(w, null);
+                else if (id.equals("tx")) closeTab(w, now);
+                else if (id.equals("pc")) { boolean d = !host.webIsDesktop(wid(w)); host.webDesktop(wid(w), d); say(d ? "Modo computador" : "Modo celular", now); }
+                else if (id.startsWith("fv")) { List<String[]> f = favorites(); int i = Integer.parseInt(id.substring(2)); if (i < f.size()) openUrl(w, f.get(i)[1]); }
+                else if (id.startsWith("hs")) { List<String[]> hl = host.history(); int i = Integer.parseInt(id.substring(2)); if (i < hl.size()) openUrl(w, hl.get(i)[1]); }
+                else if (id.equals("addr") && w.app == PLAYER) openApp(MIDIA, now);
+                else if (id.equals("back")) host.webBack(wid(w));
+                else if (id.equals("reload")) host.webReload(wid(w));
                 else if (id.equals("cine")) { if (cinemaWin == w) exitCinema(); else { exitCinema(); enterCinemaWith(w, now); } }
                 else if (id.equals("addr")) openKeyboard(T_URL, w);
                 else if (id.equals("kb")) { if (kbOpen && kbTarget == T_WEB) kbOpen = false; else openKeyboard(T_WEB, w); }
                 break;
+            case MIDIA: {
+                if (id.equals("mk0") || id.equals("mk1")) { w.mediaKind = id.charAt(2) - '0'; w.page = 0; host.loadMedia(); }
+                else if (id.equals("perm")) host.requestMedia();
+                else if (id.equals("pprev")) w.page = Math.max(0, w.page - 1);
+                else if (id.equals("pnext")) { if (buttons(w, parts(w)).stream().anyMatch(b -> b.id.startsWith("mi"))) w.page++; }
+                else if (id.startsWith("mi")) {
+                    List<Host.MediaItem> items = host.mediaList(w.mediaKind);
+                    int i = Integer.parseInt(id.substring(2));
+                    if (i < items.size()) {
+                        Win pw = openApp(PLAYER, now);
+                        host.playMedia(items.get(i));
+                        if (pw != null) say("Tocando: " + items.get(i).title, now);
+                    }
+                }
+                break;
+            }
             case NOTAS:
                 if (id.equals("nkb")) { if (kbOpen && kbTarget == T_NOTES && kbWin == w) kbOpen = false; else openKeyboard(T_NOTES, w); }
                 else if (id.equals("nclr")) w.text.setLength(0);
@@ -1291,10 +1757,9 @@ final class SpatialUi {
             }
             case WEB:
                 if (id.startsWith("s")) {
-                    int site = id.charAt(1) - '0';
-                    int app = site == 0 ? YOUTUBE : NAV;
-                    openApp(app, now);
-                    host.webLoad(app, SITES[site][1]);
+                    int site = Integer.parseInt(id.substring(1));
+                    if (site == 0) { Win y = openApp(YOUTUBE, now); if (y != null) openUrl(y, SITES[0][1]); }
+                    else openInNewTab(SITES[site][1], now);
                 }
                 break;
             case MENU:
@@ -1337,16 +1802,58 @@ final class SpatialUi {
 
     private int navSite(int chip) { return new int[]{0, 1, 2, 4}[chip]; }
 
+    private List<String[]> favorites() {
+        List<String[]> f = host.favorites();
+        if (!f.isEmpty()) return f;
+        ArrayList<String[]> d = new ArrayList<>();
+        for (String[] x : DEFAULT_FAVS) d.add(x);
+        return d;
+    }
+
+    /** Abre um endereço na página atual da janela (ligando o modo computador quando o site pede). */
+    void openUrl(Win w, String url) {
+        if (w == null) return;
+        int id = wid(w);
+        host.webOpen(id);
+        if (needsDesktop(url)) host.webDesktop(id, true);
+        host.webLoad(id, url);
+    }
+
+    private void newTab(Win w, String url) {
+        if (w.tabs.size() >= 8) { say("Máximo de 8 abas", now()); return; }
+        w.tabs.add(nextTab++);
+        w.tab = w.tabs.size() - 1;
+        host.webOpen(wid(w));
+        host.webAspect(wid(w), contentAspect(w));
+        if (url != null) openUrl(w, url);
+    }
+
+    private void closeTab(Win w, long now) {
+        if (w.tabs.size() <= 1) { host.webHome(wid(w)); return; }
+        host.webClose(wid(w));
+        w.tabs.remove(w.tab);
+        w.tab = Math.max(0, w.tab - 1);
+        host.webOpen(wid(w));
+    }
+
+    /** Abre um site numa aba nova do Navegador. */
+    void openInNewTab(String url, long now) {
+        Win w = find(NAV);
+        if (w == null) { w = openApp(NAV, now); if (w != null) openUrl(w, url); return; }
+        openApp(NAV, now);
+        if (host.webIsHome(wid(w))) openUrl(w, url); else newTab(w, url);
+    }
+
     private List<Row> rows() {
         if (rows != null) return rows;
         final String[] place = {"HUD", "Espacial", "Cinema"};
-        final String[] bg = {"Câmera", "Virtual 3D", "Escuro"};
+        final String[] bg = Config.BG_NAMES;
         final String[] seg = {"Desligado", "Recorte", "Silhueta", "Contorno"};
         ArrayList<Row> r = new ArrayList<>();
         r.add(new Row("Posição das janelas", Row.CYCLE, () -> place[cfg.placement],
                 () -> setPlacement((cfg.placement + 2) % 3, now()), () -> setPlacement((cfg.placement + 1) % 3, now())));
         r.add(new Row("Fundo", Row.CYCLE, () -> bg[cfg.background],
-                () -> cfg.background = (cfg.background + 2) % 3, () -> cfg.background = (cfg.background + 1) % 3));
+                () -> cfg.background = (cfg.background + bg.length - 1) % bg.length, () -> cfg.background = (cfg.background + 1) % bg.length));
         r.add(new Row("Rastrear a cabeça", Row.TOGGLE, () -> cfg.headTracking ? "Ligado" : "Desligado",
                 null, () -> setTracking(!cfg.headTracking, now())));
         r.add(new Row("Centro da visão", Row.ACTION, () -> "Recentralizar", null, () -> host.recenter()));
@@ -1459,15 +1966,15 @@ final class SpatialUi {
         g.line(P.body.left + .02f, P.title.bottom, P.body.right - .02f, P.title.bottom, .0016f, 0x22FFFFFF);
         // título
         String title = NAMES[w.app];
-        if (isWeb(w.app)) { String t = host.webTitle(w.app); if (t != null && !t.isEmpty()) title = t; }
-        float titleMax = P.body.width() - .27f;
+        if (isWeb(w.app)) { String t = host.webTitle(wid(w)); if (t != null && !t.isEmpty()) title = t; }
+        float titleMax = P.body.width() - .32f;
         g.circle(P.body.left + .034f, tbtnY(P), .012f, COLS[w.app][1]);
         g.txt(g.fit(title, .022f, titleMax, g.medium), P.body.left + .056f, tbtnY(P), .022f, 0xE6FFFFFF, Paint.Align.LEFT, g.medium);
         // controles da barra
         for (int i = 0; i < TBTN.length; i++) {
             float bx = tbtnX(P, i), by = tbtnY(P);
             boolean h = hov.contains("tbtn:" + w.id + ":" + TBTN[i]);
-            boolean on = TBTN[i].equals("layer") && w.behind;
+            boolean on = (TBTN[i].equals("layer") && w.behind) || (TBTN[i].equals("pin") && w.pinned);
             g.circle(bx, by, .016f * (h ? 1.18f : 1f), h ? 0xF2FFFFFF : (on ? 0xCC7CC4FF : 0x33FFFFFF));
             int ic = h ? 0xFF15171E : 0xE6FFFFFF;
             float q = .0065f;
@@ -1476,6 +1983,10 @@ final class SpatialUi {
                 case "min": g.line(bx - q, by + .002f, bx + q, by + .002f, .0026f, ic); break;
                 case "far": g.line(bx - q, by, bx + q, by, .0026f, ic); break;
                 case "near": g.line(bx - q, by, bx + q, by, .0026f, ic); g.line(bx, by - q, bx, by + q, .0026f, ic); break;
+                case "pin":
+                    g.ring(bx, by - .002f, .0045f, .0022f, ic);
+                    g.line(bx, by + .0025f, bx, by + .008f, .0022f, ic);
+                    break;
                 case "layer":
                     g.ring(bx, by, .007f, .0022f, ic);
                     g.fill.setColor(ic);
@@ -1487,7 +1998,7 @@ final class SpatialUi {
         }
 
         switch (w.app) {
-            case NAV: case YOUTUBE: drawNav(w, P); break;
+            case NAV: case YOUTUBE: case PLAYER: drawNav(w, P); break;
             case GALERIA: drawGallery(w, P); break;
             case CAMERA: drawCamera(w, P, now); break;
             case AJUSTES: drawSettings(w, P); break;
@@ -1499,8 +2010,22 @@ final class SpatialUi {
             case BOLHAS: drawBubbles(w, P); break;
             case MUSICA: drawMusic(w, P, now); break;
             case NOTAS: drawNotes(w, P); break;
+            case MIDIA: drawMedia(w, P); break;
+            case NAVE: drawGame(w, P, now); break;
             case CONTROLE: drawPad(w, P, now); break;
             default: break;
+        }
+
+        // barra de rolagem (Navegador e YouTube)
+        if (isWeb(w.app)) {
+            RectF sb = P.scroll;
+            boolean sh = hov.contains("scroll:" + w.id);
+            float rr = sb.width() / 2;
+            c.drawRoundRect(sb, rr, rr, paintOf(sh ? 0x40FFFFFF : 0x24FFFFFF));
+            float[] th = thumb(w);
+            float t0 = th == null ? 0 : th[0], tl = th == null ? .18f : th[1];
+            RectF tr = new RectF(sb.left + .004f, sb.top + sb.height() * t0 + .004f, sb.right - .004f, sb.top + sb.height() * (t0 + tl) - .004f);
+            c.drawRoundRect(tr, rr, rr, paintOf(sh ? 0xF2FFFFFF : (th == null ? 0x55FFFFFF : 0xB3FFFFFF)));
         }
 
         // barra para mover e canto para redimensionar
@@ -1521,29 +2046,88 @@ final class SpatialUi {
     }
 
     private void drawNav(Win w, Parts P) {
-        RectF a = navArea(P);
+        RectF a = navArea(w, P);
+        int pid = wid(w);
+        boolean home = w.app == NAV && host.webIsHome(pid);
+        String curUrl = host.webUrl(pid);
         for (Btn b : buttons(w, P)) {
+            if (b.id.startsWith("fv") || b.id.startsWith("hs")) continue;      // desenhados na página inicial
             boolean h = hov.contains("btn:" + w.id + ":" + b.id);
+            if (b.id.startsWith("tb")) {
+                int i = Integer.parseInt(b.id.substring(2));
+                boolean cur = i == w.tab;
+                g.fill.setColor(cur ? 0x4DFFFFFF : (h ? 0x33FFFFFF : 0x1AFFFFFF));
+                g.c.drawRoundRect(b.rect, .01f, .01f, g.fill);
+                int tid = w.tabs.get(i);
+                String t = host.webIsHome(tid) ? "Nova aba" : host.webTitle(tid);
+                if (t == null || t.isEmpty()) t = "Carregando…";
+                g.txt(g.fit(t, .014f, b.rect.width() - .016f, g.regular), b.rect.left + .008f, b.rect.centerY(), .014f,
+                        cur ? Color.WHITE : 0xB3FFFFFF, Paint.Align.LEFT, cur ? g.medium : g.regular);
+                continue;
+            }
             if (b.circle) {
-                boolean on = b.id.equals("kb") && kbOpen && kbTarget == T_WEB;
+                boolean on = (b.id.equals("kb") && kbOpen && kbTarget == T_WEB)
+                        || (b.id.equals("pc") && host.webIsDesktop(pid))
+                        || (b.id.equals("star") && curUrl != null && !home && host.isFavorite(curUrl));
                 g.circle(b.x, b.y, b.r, h ? 0xF2FFFFFF : (on ? 0xCC7CC4FF : 0x2EFFFFFF));
                 int ic = h ? 0xFF15171E : 0xFFFFFFFF;
-                if (b.id.equals("back")) {
-                    g.line(b.x + .004f, b.y - .008f, b.x - .004f, b.y, .0028f, ic);
-                    g.line(b.x - .004f, b.y, b.x + .004f, b.y + .008f, .0028f, ic);
-                } else if (b.id.equals("cine")) {
-                    boolean cine = cinemaWin == w;
-                    g.stroke.setColor(ic); g.stroke.setStrokeWidth(.002f);
-                    float q = cine ? .0055f : .0085f;
-                    g.c.drawRoundRect(new RectF(b.x - q * 1.3f, b.y - q, b.x + q * 1.3f, b.y + q), .002f, .002f, g.stroke);
-                } else if (b.id.equals("kb")) {
-                    g.stroke.setColor(ic); g.stroke.setStrokeWidth(.002f);
-                    g.c.drawRoundRect(new RectF(b.x - .01f, b.y - .0065f, b.x + .01f, b.y + .0065f), .002f, .002f, g.stroke);
-                    for (int i = 0; i < 4; i++) g.circle(b.x - .0055f + i * .0037f, b.y - .002f, .0009f, ic);
-                    g.line(b.x - .004f, b.y + .003f, b.x + .004f, b.y + .003f, .0016f, ic);
-                } else {
-                    g.stroke.setColor(ic); g.stroke.setStrokeWidth(.0026f);
-                    g.c.drawArc(new RectF(b.x - .008f, b.y - .008f, b.x + .008f, b.y + .008f), 40, 290, false, g.stroke);
+                float q = b.r * .45f;
+                switch (b.id) {
+                    case "back":
+                        g.line(b.x + q * .5f, b.y - q, b.x - q * .5f, b.y, .0026f, ic);
+                        g.line(b.x - q * .5f, b.y, b.x + q * .5f, b.y + q, .0026f, ic);
+                        break;
+                    case "cine": {
+                        boolean cine = cinemaWin == w;
+                        g.stroke.setColor(ic); g.stroke.setStrokeWidth(.002f);
+                        float k = cine ? q * .65f : q;
+                        g.c.drawRoundRect(new RectF(b.x - k * 1.3f, b.y - k, b.x + k * 1.3f, b.y + k), .002f, .002f, g.stroke);
+                        break;
+                    }
+                    case "kb":
+                        g.stroke.setColor(ic); g.stroke.setStrokeWidth(.002f);
+                        g.c.drawRoundRect(new RectF(b.x - .01f, b.y - .0065f, b.x + .01f, b.y + .0065f), .002f, .002f, g.stroke);
+                        for (int i = 0; i < 4; i++) g.circle(b.x - .0055f + i * .0037f, b.y - .002f, .0009f, ic);
+                        g.line(b.x - .004f, b.y + .003f, b.x + .004f, b.y + .003f, .0016f, ic);
+                        break;
+                    case "home": {
+                        Path hp = new Path();
+                        hp.moveTo(b.x - q, b.y); hp.lineTo(b.x, b.y - q); hp.lineTo(b.x + q, b.y);
+                        hp.moveTo(b.x - q * .7f, b.y - q * .2f); hp.lineTo(b.x - q * .7f, b.y + q); hp.lineTo(b.x + q * .7f, b.y + q); hp.lineTo(b.x + q * .7f, b.y - q * .2f);
+                        g.stroke.setColor(ic); g.stroke.setStrokeWidth(.0022f);
+                        g.c.drawPath(hp, g.stroke);
+                        break;
+                    }
+                    case "star": {
+                        Path sp = new Path();
+                        for (int i = 0; i < 10; i++) {
+                            double ang = -Math.PI / 2 + i * Math.PI / 5;
+                            float rr = i % 2 == 0 ? q * 1.15f : q * .5f;
+                            float x = b.x + (float) Math.cos(ang) * rr, y = b.y + (float) Math.sin(ang) * rr;
+                            if (i == 0) sp.moveTo(x, y); else sp.lineTo(x, y);
+                        }
+                        sp.close();
+                        g.fill.setColor(ic);
+                        g.c.drawPath(sp, g.fill);
+                        break;
+                    }
+                    case "tn":
+                        g.line(b.x - q, b.y, b.x + q, b.y, .0024f, ic);
+                        g.line(b.x, b.y - q, b.x, b.y + q, .0024f, ic);
+                        break;
+                    case "tx":
+                        g.line(b.x - q * .8f, b.y - q * .8f, b.x + q * .8f, b.y + q * .8f, .0022f, ic);
+                        g.line(b.x + q * .8f, b.y - q * .8f, b.x - q * .8f, b.y + q * .8f, .0022f, ic);
+                        break;
+                    case "pc":
+                        g.stroke.setColor(ic); g.stroke.setStrokeWidth(.0018f);
+                        g.c.drawRect(b.x - q * 1.1f, b.y - q * .8f, b.x + q * 1.1f, b.y + q * .4f, g.stroke);
+                        g.line(b.x - q * .5f, b.y + q, b.x + q * .5f, b.y + q, .0018f, ic);
+                        break;
+                    default:
+                        g.stroke.setColor(ic); g.stroke.setStrokeWidth(.0024f);
+                        g.c.drawArc(new RectF(b.x - q, b.y - q, b.x + q, b.y + q), 40, 290, false, g.stroke);
+                        break;
                 }
             } else {
                 boolean editing = kbOpen && kbTarget == T_URL && kbWin == w;
@@ -1553,25 +2137,70 @@ final class SpatialUi {
                 g.line(ix + .004f, iy + .002f, ix + .008f, iy + .006f, .002f, 0xCCFFFFFF);
                 String txt;
                 int col = Color.WHITE;
-                String hint = w.app == YOUTUBE ? "Pesquisar no YouTube" : "Pesquisar ou digitar endereço";
+                String hint = w.app == YOUTUBE ? "Pesquisar no YouTube" : w.app == PLAYER ? "Escolher vídeo ou música" : "Pesquisar ou digitar endereço";
                 if (editing) { txt = urlBuf.length() == 0 ? hint : urlBuf + "|"; if (urlBuf.length() == 0) col = 0x99FFFFFF; }
                 else {
-                    String u = w.app == YOUTUBE ? "" : host.webUrl(w.app);
+                    String u = w.app == YOUTUBE || home ? "" : w.app == PLAYER ? host.webTitle(pid) : curUrl;
                     txt = (u == null || u.isEmpty()) ? hint : u.replaceFirst("^https?://", "").replaceFirst("^www\\.", "");
                     if (u == null || u.isEmpty()) col = 0x99FFFFFF;
                 }
                 g.txt(g.fit(txt, .016f, b.rect.width() - .05f, g.regular), ix + .016f, iy, .016f, col, Paint.Align.LEFT, g.regular);
             }
         }
-        g.fill.setColor(0xFFFFFFFF);
+        if (home) { drawStartPage(w, P, a); return; }
+        g.fill.setColor(w.app == PLAYER ? 0xFF000000 : 0xFFFFFFFF);
         g.c.drawRoundRect(a, .014f, .014f, g.fill);
-        Bitmap wb = host.webBitmap(w.app);
+        Bitmap wb = host.webBitmap(pid);
         if (wb != null) {
             g.c.save();
             g.clipRound(a, .014f);
             g.c.drawBitmap(wb, null, a, g.bmp);
             g.c.restore();
-        } else g.txt(w.app == YOUTUBE ? "Abrindo o YouTube…" : "Carregando página…", a.centerX(), a.centerY(), .022f, 0xFF6B7280, Paint.Align.CENTER, g.medium);
+        } else g.txt(w.app == YOUTUBE ? "Abrindo o YouTube…" : "Carregando…", a.centerX(), a.centerY(), .022f, 0xFF6B7280, Paint.Align.CENTER, g.medium);
+    }
+
+    /** Página inicial do Navegador: favoritos e sites recentes. */
+    private void drawStartPage(Win w, Parts P, RectF a) {
+        g.fill.setColor(0x26000000);
+        g.c.drawRoundRect(a, .014f, .014f, g.fill);
+        g.txt("Favoritos", a.left + .02f, a.top + .026f, .018f, 0xE6FFFFFF, Paint.Align.LEFT, g.medium);
+        List<String[]> favs = favorites();
+        boolean hisTitle = false;
+        for (Btn b : buttons(w, P)) {
+            boolean h = hov.contains("btn:" + w.id + ":" + b.id);
+            if (b.id.startsWith("fv")) {
+                int i = Integer.parseInt(b.id.substring(2));
+                if (i >= favs.size()) continue;
+                String[] f = favs.get(i);
+                g.glass(b.rect, .016f, h, false);
+                float r = b.rect.height() * .26f, cy = b.rect.top + b.rect.height() * .38f;
+                g.circle(b.rect.centerX(), cy, r, siteColor(f[1]));
+                String letter = f[0].isEmpty() ? "?" : f[0].substring(0, 1).toUpperCase(new Locale("pt", "BR"));
+                g.txt(letter, b.rect.centerX(), cy, .02f, Color.WHITE, Paint.Align.CENTER, g.medium);
+                g.txt(g.fit(f[0], .014f, b.rect.width() - .01f, g.regular), b.rect.centerX(), b.rect.bottom - .013f, .014f, Color.WHITE, Paint.Align.CENTER, g.regular);
+            } else if (b.id.startsWith("hs")) {
+                List<String[]> his = host.history();
+                int i = Integer.parseInt(b.id.substring(2));
+                if (i >= his.size()) continue;
+                if (!hisTitle) { hisTitle = true; g.txt("Recentes", a.left + .02f, b.rect.top - .022f, .018f, 0xE6FFFFFF, Paint.Align.LEFT, g.medium); }
+                g.fill.setColor(h ? 0x40FFFFFF : 0x14FFFFFF);
+                g.c.drawRoundRect(b.rect, .01f, .01f, g.fill);
+                String[] e = his.get(i);
+                g.txt(g.fit(e[0].isEmpty() ? e[1] : e[0], .015f, b.rect.width() * .55f, g.medium), b.rect.left + .014f, b.rect.centerY(), .015f, Color.WHITE, Paint.Align.LEFT, g.medium);
+                String host2 = e[1].replaceFirst("^https?://", "").replaceFirst("/.*$", "");
+                g.txt(g.fit(host2, .013f, b.rect.width() * .35f, g.regular), b.rect.right - .014f, b.rect.centerY(), .013f, 0x99FFFFFF, Paint.Align.RIGHT, g.regular);
+            }
+        }
+    }
+
+    private static int siteColor(String url) {
+        for (int i = 0; i < SITES.length; i++) {
+            String hostPart = SITES[i][1].replaceFirst("^https?://", "").replaceFirst("^(www\\.|m\\.|pt\\.m\\.)", "");
+            if (url != null && url.contains(hostPart.replaceFirst("/.*$", ""))) return SITE_COL[i];
+        }
+        int hsh = url == null ? 0 : url.hashCode();
+        float[] hsv = {Math.abs(hsh % 360), .6f, .75f};
+        return Color.HSVToColor(hsv);
     }
 
     private void drawGallery(Win w, Parts P) {
@@ -1653,13 +2282,14 @@ final class SpatialUi {
 
     private void drawWeb(Win w, Parts P) {
         for (Btn b : buttons(w, P)) {
-            int i = b.id.charAt(1) - '0';
+            int i = Integer.parseInt(b.id.substring(1));
             boolean h = hov.contains("btn:" + w.id + ":" + b.id);
             g.glass(b.rect, .022f, h, false);
             float cx = b.rect.centerX(), cy = b.rect.centerY();
-            g.circle(cx, cy - .025f, .028f * (h ? 1.1f : 1f), new int[]{0xFFFF3B30, 0xFF4285F4, 0xFF8E8E93, 0xFF34A853, 0xFFE53935, 0xFF0A84FF}[i]);
-            g.txt(SITES[i][0].substring(0, 1), cx, cy - .025f, .026f, Color.WHITE, Paint.Align.CENTER, g.medium);
-            g.txt(SITES[i][0], cx, cy + .03f, .019f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            float r = Math.min(.024f, b.rect.height() * .22f);
+            g.circle(cx, cy - r * .8f, r * (h ? 1.1f : 1f), SITE_COL[i]);
+            g.txt(SITES[i][0].substring(0, 1), cx, cy - r * .8f, .022f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            g.txt(SITES[i][0], cx, cy + r * 1.1f, .016f, Color.WHITE, Paint.Align.CENTER, g.medium);
         }
     }
 
@@ -1802,7 +2432,7 @@ final class SpatialUi {
             {"X", "Menu de apps"}, {"Y", "Teclado"}, {"LB / RB", "Afastar / aproximar janela"},
             {"LT", "Segurar: arrastar janela na mira"}, {"RT", "Confirmar"}, {"≡ Start", "Ajustes"},
             {"⧉ View", "Recentralizar a visão"}, {"Analógico esq.", "Ajustar a mira (L3 centraliza)"},
-            {"Analógico dir.", "Rolar a página / trocar foto"}, {"Direcional", "Mover a mira"}};
+            {"Analógico dir.", "Rolar a página / trocar foto"}, {"R3", "Comando de voz"}, {"Direcional", "Mover a mira"}};
 
     private boolean pd(int code) { return padDown.contains(code); }
 
@@ -1864,6 +2494,47 @@ final class SpatialUi {
             g.txt(g.fit(h[1], .016f, C.right - lx - .13f, g.regular), lx + .125f, ly + lh / 2, .016f, 0xE6FFFFFF, Paint.Align.LEFT, g.regular);
             ly += lh;
         }
+    }
+
+    private void drawMedia(Win w, Parts P) {
+        RectF C = P.content;
+        for (Btn b : buttons(w, P)) {
+            boolean h = hov.contains("btn:" + w.id + ":" + b.id);
+            if (b.id.startsWith("mk")) {
+                boolean on = (b.id.charAt(2) - '0') == w.mediaKind;
+                g.fill.setColor(on ? 0xF2FFFFFF : (h ? 0x40FFFFFF : 0x1FFFFFFF));
+                g.c.drawRoundRect(b.rect, b.rect.height() / 2, b.rect.height() / 2, g.fill);
+                g.txt(b.id.equals("mk0") ? "Vídeos" : "Músicas", b.rect.centerX(), b.rect.centerY(), .016f, on ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+            } else if (b.id.equals("perm")) {
+                g.glass(b.rect, b.rect.height() / 2, h, false);
+                g.txt("Permitir acesso a vídeos e músicas", b.rect.centerX(), b.rect.centerY(), .015f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            } else if (b.id.startsWith("mi")) {
+                List<Host.MediaItem> items = host.mediaList(w.mediaKind);
+                int i = Integer.parseInt(b.id.substring(2));
+                if (i >= items.size()) continue;
+                Host.MediaItem it = items.get(i);
+                g.fill.setColor(h ? 0x40FFFFFF : 0x14FFFFFF);
+                g.c.drawRoundRect(b.rect, .01f, .01f, g.fill);
+                float th = b.rect.height() - .008f;
+                RectF tr = new RectF(b.rect.left + .006f, b.rect.top + .004f, b.rect.left + .006f + th * (it.kind == 0 ? 1.6f : 1f), b.rect.bottom - .004f);
+                if (it.thumb != null) {
+                    g.c.save(); g.clipRound(tr, .006f); g.cover(it.thumb, tr, g.bmp); g.c.restore();
+                } else {
+                    g.fill.setColor(COLS[MIDIA][1]);
+                    g.c.drawRoundRect(tr, .006f, .006f, g.fill);
+                    glyph(it.kind == 0 ? CINEMA : MUSICA, tr.centerX(), tr.centerY(), th * .32f);
+                }
+                float tx = tr.right + .014f;
+                g.txt(g.fit(it.title, .016f, b.rect.right - tx - .1f, g.medium), tx, b.rect.centerY() - (it.artist.isEmpty() ? 0 : .009f), .016f, Color.WHITE, Paint.Align.LEFT, g.medium);
+                if (!it.artist.isEmpty())
+                    g.txt(g.fit(it.artist, .013f, b.rect.right - tx - .1f, g.regular), tx, b.rect.centerY() + .011f, .013f, 0x99FFFFFF, Paint.Align.LEFT, g.regular);
+                long sec = it.durationMs / 1000;
+                g.txt(String.format(Locale.US, "%d:%02d", sec / 60, sec % 60), b.rect.right - .012f, b.rect.centerY(), .014f, 0x99FFFFFF, Paint.Align.RIGHT, g.regular);
+            } else arrowBtn(b, h, b.id.equals("pprev"));
+        }
+        if (host.mediaAllowed() && host.mediaList(w.mediaKind).isEmpty())
+            g.txt(w.mediaKind == 0 ? "Nenhum vídeo encontrado no celular" : "Nenhuma música encontrada no celular",
+                    C.centerX(), C.centerY(), .018f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
     private void drawClock(Win w, Parts P) {
@@ -2038,6 +2709,25 @@ final class SpatialUi {
                 p.moveTo(-.12f, .32f); p.lineTo(-.12f, -.48f); p.lineTo(.5f, -.6f); p.lineTo(.5f, .2f);
                 c.drawPath(p, s);
                 break;
+            case MIDIA:
+                c.drawRoundRect(new RectF(-.62f, -.46f, .62f, .46f), .14f, .14f, s);
+                p.moveTo(-.14f, -.22f); p.lineTo(.24f, 0); p.lineTo(-.14f, .22f); p.close();
+                c.drawPath(p, fl);
+                break;
+            case PLAYER:
+                c.drawCircle(0, 0, .6f, s);
+                p.moveTo(-.16f, -.26f); p.lineTo(.3f, 0); p.lineTo(-.16f, .26f); p.close();
+                c.drawPath(p, fl);
+                break;
+            case NAVE:
+                p.moveTo(0, -.6f); p.lineTo(.36f, .42f); p.lineTo(0, .22f); p.lineTo(-.36f, .42f); p.close();
+                c.drawPath(p, fl);
+                break;
+            case VOZ:
+                c.drawRoundRect(new RectF(-.18f, -.6f, .18f, .14f), .18f, .18f, fl);
+                c.drawArc(new RectF(-.38f, -.3f, .38f, .34f), 0, 180, false, s);
+                c.drawLine(0, .34f, 0, .56f, s);
+                break;
             case YOUTUBE:
                 c.drawRoundRect(new RectF(-.62f, -.42f, .62f, .42f), .22f, .22f, fl);
                 fl.setColor(0xFFE0261C);
@@ -2161,6 +2851,30 @@ final class SpatialUi {
             g.fill.setColor(Gfx.a(0xE6202230, ta));
             c.drawRoundRect(tr, .02f, .02f, g.fill);
             g.txt(toast, tr.centerX(), tr.centerY(), .019f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
+        }
+
+        long nowQ = now;
+        if (qrVisible(nowQ) && qrWanted(nowQ)) {
+            float qh = qss / 2, k = qh * .45f;
+            g.stroke.setColor(0xE69FE8B0); g.stroke.setStrokeWidth(.004f);
+            float[][] cs = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+            for (float[] cc : cs) {
+                float x = qsx + cc[0] * qh, y = qsy + cc[1] * qh;
+                c.drawLine(x, y, x - cc[0] * k, y, g.stroke);
+                c.drawLine(x, y, x, y - cc[1] * k, g.stroke);
+            }
+        }
+
+        if (host.isListening()) {
+            String vt = host.voiceText();
+            String label = vt == null || vt.isEmpty() ? "Ouvindo… fale um comando" : vt;
+            float tw = Math.min(eyeHalfW * 1.6f, g.width(label, .02f, g.medium) + .09f);
+            RectF vr = new RectF(-tw / 2, -.36f, tw / 2, -.3f);
+            g.fill.setColor(0xE6202230);
+            c.drawRoundRect(vr, .03f, .03f, g.fill);
+            float pulse = .009f + .003f * (float) Math.sin(now / 120.0);
+            g.circle(vr.left + .03f, vr.centerY(), pulse, 0xFFFF5A52);
+            g.txt(g.fit(label, .02f, tw - .07f, g.medium), vr.left + .05f, vr.centerY(), .02f, Color.WHITE, Paint.Align.LEFT, g.medium);
         }
 
         // ---- mãos e ponteiros (alinhados à câmera) ----

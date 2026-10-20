@@ -106,7 +106,8 @@ final class SettingsPanel extends ScrollView {
         slider("Suavização do movimento", 0, 1, .05f, () -> cfg.headSmooth, v -> cfg.headSmooth = v, v -> Math.round(v * 100) + "%");
 
         section("Fundo e câmera");
-        choice("Fundo", new String[]{"Câmera", "Virtual 3D", "Escuro"}, () -> cfg.background, v -> cfg.background = v);
+        choice("Fundo", new String[]{"Câmera", "Grade 3D", "Escuro"}, () -> Math.min(cfg.background, 3), v -> cfg.background = v);
+        choice("Ambientes", new String[]{"Espaço", "Praia", "Pôr do sol", "Cinema"}, () -> cfg.background - 3, v -> cfg.background = v + 3);
         slider("Brilho da câmera", -.5f, .5f, .02f, () -> cfg.camBrightness, v -> cfg.camBrightness = v, v -> Math.round(v * 100) + "");
         slider("Contraste da câmera", .5f, 1.6f, .02f, () -> cfg.camContrast, v -> cfg.camContrast = v, v -> Math.round(v * 100) + "%");
         slider("Opacidade da câmera", 0, 1, .05f, () -> cfg.camOpacity, v -> cfg.camOpacity = v, v -> Math.round(v * 100) + "%");
@@ -129,6 +130,8 @@ final class SettingsPanel extends ScrollView {
                 + "Y o teclado, LB/RB afastam ou aproximam a janela, LT segurado arrasta qualquer janela, RT também confirma, "
                 + "Start abre os Ajustes e View recentraliza. Analógico esquerdo ajusta a mira (L3 centraliza), o direito rola a página. "
                 + "O app Controle, no menu, mostra os botões ao vivo.");
+
+        toggle("Lembrar as janelas ao reabrir o app", () -> cfg.rememberLayout, v -> cfg.rememberLayout = v);
 
         section("Dock");
         toggle("Dock segue a cabeça (desligado = fixo no ambiente)", () -> cfg.dockFollow, v -> cfg.dockFollow = v);

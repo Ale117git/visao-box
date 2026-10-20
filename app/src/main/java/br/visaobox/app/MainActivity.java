@@ -54,7 +54,7 @@ import java.util.concurrent.Executors;
 /** Liga tudo: tela binocular, câmera, sensores, navegador, galeria, arquivos e painel de ajustes. */
 public class MainActivity extends ComponentActivity implements Host, SettingsPanel.Actions {
 
-    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8, REQ_AUDIO = 9;
+    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8, REQ_AUDIO = 9, REQ_MEDIA = 10, REQ_VOICE = 11;
 
     private SharedPreferences prefs;
     private final Config cfg = new Config();
@@ -115,6 +115,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
         refreshFiles();
         loadGallery();
+        loadLists();
+        if (cfg.rememberLayout) vr.pendingLayout = prefs.getString("layout", "");
         android.view.Choreographer.getInstance().postFrameCallback(webTick);
     }
 
@@ -133,6 +135,11 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (code == REQ_CAMERA) {
             if (ok) cam.start();
             else vr.camError = "Permissão da câmera negada. Libere em Configurações > Apps > Visão Box.";
+        } else if (code == REQ_MEDIA) {
+            mediaLoaded = false;
+            loadMedia();
+        } else if (code == REQ_VOICE) {
+            if (ok) startVoice();
         } else if (code == REQ_AUDIO) {
             beginRecording(ok);
         } else if (code == REQ_GALLERY && ok) {
@@ -154,6 +161,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     protected void onPause() {
         if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
+        if (cfg.rememberLayout) prefs.edit().putString("layout", vr.ui.layoutCache).apply();
         vr.onPause();
         cfg.save(prefs, "cur_");
         super.onPause();
@@ -164,6 +172,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         cam.stop();
         io.shutdown();
         for (int i = 0; i < panes.size(); i++) panes.valueAt(i).destroy();
+        if (speech != null) speech.destroy();
         super.onDestroy();
     }
 
@@ -227,8 +236,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private WebPane pane(int id) {
         WebPane p = panes.get(id);
         if (p == null) {
-            String home = id == SpatialUi.YOUTUBE ? "https://m.youtube.com" : "https://www.google.com";
-            p = new WebPane(id, this, root, main, home);
+            String home = id == SpatialUi.YOUTUBE ? "https://m.youtube.com" : null;   // abas novas abrem na página inicial
+            p = new WebPane(id, this, root, main, home, id >= 100 ? this::addHistory : null);
             panes.put(id, p);
         }
         return p;
@@ -240,10 +249,11 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         public void doFrame(long frameTimeNanos) {
             if ((++tickCount & 1) == 0) {
                 long now = SystemClock.uptimeMillis();
-                int mask = vr.webMask;
+                int[] vis = vr.webVisible;
                 for (int i = 0; i < panes.size(); i++) {
                     WebPane p = panes.valueAt(i);
-                    boolean visible = (mask & (p.id == SpatialUi.NAV ? 1 : 2)) != 0;
+                    boolean visible = false;
+                    for (int v : vis) if (v == p.id) { visible = true; break; }
                     try { p.tick(visible, cfg.webGpu, now); } catch (Throwable ignored) { }
                 }
             }
@@ -263,6 +273,82 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     @Override public void webAspect(int id, float aspect) { main.post(() -> pane(id).setAspect(aspect)); }
     @Override public void webInsert(int id, String text) { main.post(() -> pane(id).insert(text)); }
     @Override public void webKey(int id, int key) { main.post(() -> pane(id).key(key)); }
+
+    @Override
+    public void webClose(int id) {
+        main.post(() -> {
+            WebPane p = panes.get(id);
+            if (p == null) return;
+            panes.remove(id);
+            if (p.web != null) root.removeView(p.web);
+            p.destroy();
+        });
+    }
+
+    @Override public void webHome(int id) { main.post(() -> pane(id).goHome()); }
+    @Override public boolean webIsHome(int id) { WebPane p = panes.get(id); return p == null || p.isHome(); }
+    @Override public void webDesktop(int id, boolean on) { main.post(() -> pane(id).setDesktop(on)); }
+    @Override public boolean webIsDesktop(int id) { WebPane p = panes.get(id); return p != null && p.desktop; }
+
+    /* ---------- favoritos e histórico (guardados no celular) ---------- */
+
+    private final List<String[]> favs = new CopyOnWriteArrayList<>();
+    private final List<String[]> hist = new CopyOnWriteArrayList<>();
+
+    private void loadLists() {
+        readList("favs", favs);
+        readList("hist", hist);
+    }
+
+    private void readList(String key, List<String[]> out) {
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString(key, "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                org.json.JSONArray e = a.getJSONArray(i);
+                out.add(new String[]{e.getString(0), e.getString(1)});
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private void writeList(String key, List<String[]> list) {
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (String[] e : list) { org.json.JSONArray x = new org.json.JSONArray(); x.put(e[0]); x.put(e[1]); a.put(x); }
+        prefs.edit().putString(key, a.toString()).apply();
+    }
+
+    private static String cleanTitle(String t, String url) {
+        if (t == null || t.trim().isEmpty() || t.startsWith("http")) return url.replaceFirst("^https?://", "").replaceFirst("^www\\.", "").replaceFirst("/.*$", "");
+        return t.trim();
+    }
+
+    private void addHistory(int id, String title, String url) {
+        if (url == null || url.startsWith("about:")) return;
+        for (String[] e : hist) if (e[1].equals(url)) hist.remove(e);
+        hist.add(0, new String[]{cleanTitle(title, url), url});
+        while (hist.size() > 30) hist.remove(hist.size() - 1);
+        writeList("hist", hist);
+    }
+
+    @Override public List<String[]> favorites() { return favs; }
+    @Override public List<String[]> history() { return hist; }
+
+    @Override
+    public boolean isFavorite(String url) {
+        if (url == null) return false;
+        for (String[] e : favs) if (e[1].equals(url)) return true;
+        return false;
+    }
+
+    @Override
+    public boolean toggleFavorite(String title, String url) {
+        for (String[] e : favs) if (e[1].equals(url)) { favs.remove(e); writeList("favs", favs); return false; }
+        favs.add(new String[]{cleanTitle(title, url), url});
+        writeList("favs", favs);
+        return true;
+    }
+
+    @Override public float[] webMetrics(int id) { WebPane p = panes.get(id); return p == null ? null : p.metrics; }
+    @Override public void webScrollTo(int id, float frac) { main.post(() -> pane(id).scrollTo(frac)); }
 
     @Override
     public void webScroll(int id, int dx, int dy) {
@@ -374,6 +460,147 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             gallery.add(0, it);
             main.post(this::refreshFiles);
         });
+    }
+
+    /* ================= voz ================= */
+
+    private android.speech.SpeechRecognizer speech;
+    private volatile boolean listening;
+    private volatile String heard = "";
+
+    @Override public boolean isListening() { return listening; }
+    @Override public String voiceText() { return heard; }
+
+    @Override
+    public void startVoice() {
+        main.post(() -> {
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { vrToast("Reconhecimento de voz indisponível neste celular"); return; }
+            if (!has(Manifest.permission.RECORD_AUDIO)) { requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_VOICE); return; }
+            if (listening && speech != null) { speech.stopListening(); return; }
+            if (speech == null) {
+                speech = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+                speech.setRecognitionListener(new android.speech.RecognitionListener() {
+                    @Override public void onReadyForSpeech(Bundle b) { listening = true; heard = ""; }
+                    @Override public void onBeginningOfSpeech() { }
+                    @Override public void onRmsChanged(float v) { }
+                    @Override public void onBufferReceived(byte[] b) { }
+                    @Override public void onEndOfSpeech() { }
+                    @Override public void onEvent(int t, Bundle b) { }
+                    @Override public void onError(int e) {
+                        listening = false;
+                        if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+                            vrToast("Não ouvi nada — tente de novo");
+                    }
+                    @Override public void onPartialResults(Bundle b) {
+                        java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                        if (r != null && !r.isEmpty()) heard = r.get(0);
+                    }
+                    @Override public void onResults(Bundle b) {
+                        listening = false;
+                        java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                        if (r == null || r.isEmpty()) return;
+                        final String text = r.get(0);
+                        heard = text;
+                        vr.onGl(() -> vr.ui.voiceCommand(text, SystemClock.uptimeMillis()));
+                    }
+                });
+            }
+            android.content.Intent i = new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "pt-BR");
+            i.putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            listening = true;
+            heard = "";
+            speech.startListening(i);
+        });
+    }
+
+    /* ================= mídia do celular ================= */
+
+    private final List<MediaItem> videos = new CopyOnWriteArrayList<>(), songs = new CopyOnWriteArrayList<>();
+    private volatile boolean mediaLoaded;
+
+    private String[] mediaPerms() {
+        return Build.VERSION.SDK_INT >= 33
+                ? new String[]{"android.permission.READ_MEDIA_VIDEO", "android.permission.READ_MEDIA_AUDIO"}
+                : new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
+    }
+
+    @Override
+    public boolean mediaAllowed() {
+        for (String p : mediaPerms()) if (!has(p)) return false;
+        return true;
+    }
+
+    @Override public void requestMedia() { main.post(() -> requestPermissions(mediaPerms(), REQ_MEDIA)); }
+
+    @Override public List<MediaItem> mediaList(int kind) { return kind == 0 ? videos : songs; }
+
+    @Override
+    public void loadMedia() {
+        if (mediaLoaded || !mediaAllowed()) return;
+        mediaLoaded = true;
+        io.execute(() -> {
+            List<MediaItem> v = new ArrayList<>(), a = new ArrayList<>();
+            String[] vp = {MediaStore.Video.Media._ID, MediaStore.Video.Media.TITLE, MediaStore.Video.Media.DURATION};
+            try (Cursor c = getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, vp, null, null,
+                    MediaStore.Video.Media.DATE_ADDED + " DESC")) {
+                while (c != null && c.moveToNext() && v.size() < 200) {
+                    MediaItem it = new MediaItem();
+                    it.kind = 0;
+                    it.uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, c.getLong(0));
+                    it.title = c.getString(1) == null ? "Vídeo" : c.getString(1);
+                    it.durationMs = c.getLong(2);
+                    v.add(it);
+                }
+            } catch (Throwable ignored) { }
+            String[] ap = {MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION};
+            try (Cursor c = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, ap,
+                    MediaStore.Audio.Media.IS_MUSIC + " != 0", null, MediaStore.Audio.Media.TITLE + " ASC")) {
+                while (c != null && c.moveToNext() && a.size() < 500) {
+                    MediaItem it = new MediaItem();
+                    it.kind = 1;
+                    it.uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, c.getLong(0));
+                    it.title = c.getString(1) == null ? "Música" : c.getString(1);
+                    String ar = c.getString(2);
+                    it.artist = ar == null || ar.contains("<unknown>") ? "" : ar;
+                    it.durationMs = c.getLong(3);
+                    a.add(it);
+                }
+            } catch (Throwable ignored) { }
+            videos.clear(); videos.addAll(v);
+            songs.clear(); songs.addAll(a);
+            // miniaturas dos vídeos (Android 10+)
+            if (Build.VERSION.SDK_INT >= 29) {
+                for (MediaItem it : v) {
+                    try { it.thumb = getContentResolver().loadThumbnail(it.uri, new Size(256, 144), null); } catch (Throwable ignored) { }
+                }
+            }
+        });
+    }
+
+    private static String esc(String t) {
+        return t == null ? "" : t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    /** Monta a página do player e toca na janela Player. */
+    @Override
+    public void playMedia(MediaItem it) {
+        String src = WebPane.LOCAL + "media?u=" + Uri.encode(it.uri.toString());
+        String css = "html,body{margin:0;height:100%;background:#000;color:#fff;font-family:sans-serif;overflow:hidden}"
+                + "video{width:100%;height:100%;object-fit:contain;background:#000}"
+                + ".m{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:18px;"
+                + "background:linear-gradient(160deg,#3b1d6e,#0d0f1a)}"
+                + ".art{width:38vh;height:38vh;border-radius:24px;background:linear-gradient(135deg,#ff9f68,#e0457b);"
+                + "display:flex;align-items:center;justify-content:center;font-size:18vh;box-shadow:0 20px 60px #0008}"
+                + "h1{font-size:6vh;margin:0 24px;text-align:center}p{opacity:.7;margin:0;font-size:4vh}audio{width:86%}";
+        String body = it.kind == 0
+                ? "<video src=\"" + src + "\" controls autoplay playsinline></video>"
+                : "<div class=m><div class=art>♪</div><h1>" + esc(it.title) + "</h1><p>" + esc(it.artist)
+                  + "</p><audio src=\"" + src + "\" controls autoplay></audio></div>";
+        String html = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\">"
+                + "<title>" + esc(it.title) + "</title><style>" + css + "</style></head><body>" + body + "</body></html>";
+        main.post(() -> pane(SpatialUi.PLAYER).loadHtml(html));
     }
 
     /* ================= gravação da realidade mista ================= */

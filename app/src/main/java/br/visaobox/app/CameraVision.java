@@ -34,6 +34,12 @@ import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult;
 import com.google.mediapipe.tasks.vision.imagesegmenter.ImageSegmenter;
 import com.google.mediapipe.tasks.vision.imagesegmenter.ImageSegmenterResult;
 
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.common.InputImage;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -65,6 +71,8 @@ final class CameraVision {
     private volatile boolean handBusy, segBusy, handGpu;
     private long lastTs = 0, handSent = 0, segSent = 0;
     private int frameNo = 0, handErrors = 0;
+    private BarcodeScanner qr;
+    private volatile boolean qrBusy;
     private boolean handTried;
 
     private ProcessCameraProvider provider;
@@ -351,6 +359,7 @@ final class CameraVision {
                 handBusy = true; handSent = ts;
                 try { hl.detectAsync(new BitmapImageBuilder(frame).build(), ts); } catch (Throwable t) { handBusy = false; }
             }
+            if (vr.qrWanted && !qrBusy && frameNo % 4 == 0) scanQr(frame);
             ImageSegmenter is = seg;
             if (cfg.segMode != Config.SEG_OFF && cfg.background == Config.BG_CAMERA && is != null && !segBusy && frameNo % 2 == 0) {
                 segBusy = true; segSent = ts;
@@ -369,11 +378,56 @@ final class CameraVision {
         }
     }
 
+    /** Procura QR codes na imagem (algumas vezes por segundo, só quando o app precisa). */
+    private void scanQr(Bitmap frame) {
+        try {
+            if (qr == null) qr = BarcodeScanning.getClient(new BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE).build());
+            final int w = frame.getWidth(), h = frame.getHeight();
+            Bitmap copy = frame.copy(Bitmap.Config.ARGB_8888, false);
+            qrBusy = true;
+            qr.process(InputImage.fromBitmap(copy, 0))
+                    .addOnSuccessListener(exec, list -> {
+                        qrBusy = false;
+                        if (list == null || list.isEmpty()) return;
+                        Barcode best = null;
+                        float bestArea = 0;
+                        for (Barcode b : list) {
+                            Rect r = b.getBoundingBox();
+                            if (r == null) continue;
+                            float a = (float) r.width() * r.height();
+                            if (a > bestArea) { bestArea = a; best = b; }
+                        }
+                        if (best == null) return;
+                        android.graphics.Point[] pts = best.getCornerPoints();
+                        float cx, cy, size;
+                        if (pts != null && pts.length == 4) {
+                            cx = 0; cy = 0;
+                            for (android.graphics.Point p : pts) { cx += p.x; cy += p.y; }
+                            cx /= 4; cy /= 4;
+                            float side = 0;
+                            for (int i = 0; i < 4; i++) side += (float) Math.hypot(pts[i].x - pts[(i + 1) % 4].x, pts[i].y - pts[(i + 1) % 4].y);
+                            size = side / 4;
+                        } else {
+                            Rect r = best.getBoundingBox();
+                            cx = r.exactCenterX(); cy = r.exactCenterY(); size = Math.max(r.width(), r.height());
+                        }
+                        vr.qrU = cx / w; vr.qrV = cy / h; vr.qrS = size / h;
+                        vr.qrText = best.getRawValue();
+                        vr.qrStamp = SystemClock.uptimeMillis();
+                    })
+                    .addOnFailureListener(exec, e -> qrBusy = false);
+        } catch (Throwable t) {
+            qrBusy = false;
+        }
+    }
+
     void stop() {
         if (provider != null) provider.unbindAll();
         exec.execute(() -> {
             try { if (hand != null) hand.close(); } catch (Throwable ignored) { }
             try { if (seg != null) seg.close(); } catch (Throwable ignored) { }
+            try { if (qr != null) qr.close(); } catch (Throwable ignored) { }
         });
         exec.shutdown();
     }

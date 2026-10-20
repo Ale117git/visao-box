@@ -7,7 +7,8 @@ final class Config {
 
     // ---- Modos ----
     static final int HUD = 0, ESPACIAL = 1, CINEMA = 2;
-    static final int BG_CAMERA = 0, BG_VIRTUAL = 1, BG_ESCURO = 2;
+    static final int BG_CAMERA = 0, BG_VIRTUAL = 1, BG_ESCURO = 2, BG_ESPACO = 3, BG_PRAIA = 4, BG_POR_DO_SOL = 5, BG_CINEMA = 6;
+    static final String[] BG_NAMES = {"Câmera", "Grade 3D", "Escuro", "Espaço", "Praia", "Pôr do sol", "Sala de cinema"};
     static final int SEG_OFF = 0, SEG_RECORTE = 1, SEG_SILHUETA = 2, SEG_CONTORNO = 3;
 
     // ---- Ajustes ópticos ----
@@ -20,7 +21,8 @@ final class Config {
     float alignXmm = 0f, alignYmm = 0f; // correção de alinhamento
     float vignette = 0.45f;         // escurecimento das bordas
     float resScale = 1.0f;          // nitidez (1 = resolução da tela, compensando a lente)
-    boolean webGpu = true;          // navegador copiado pela placa de vídeo (vídeos e mais nitidez)
+    boolean webGpu = true;
+    boolean rememberLayout = true;  // reabre as janelas como estavam          // navegador copiado pela placa de vídeo (vídeos e mais nitidez)
     float stereo3d = 1f;            // intensidade da paralaxe
 
     // ---- Conforto ----
@@ -53,7 +55,7 @@ final class Config {
 
     void copyFrom(Config o) {
         stereo = o.stereo; ipdMm = o.ipdMm; eyeScale = o.eyeScale; fovDeg = o.fovDeg; distortion = o.distortion;
-        k1 = o.k1; k2 = o.k2; alignXmm = o.alignXmm; alignYmm = o.alignYmm; vignette = o.vignette; resScale = o.resScale; webGpu = o.webGpu;
+        k1 = o.k1; k2 = o.k2; alignXmm = o.alignXmm; alignYmm = o.alignYmm; vignette = o.vignette; resScale = o.resScale; webGpu = o.webGpu; rememberLayout = o.rememberLayout;
         stereo3d = o.stereo3d; brightness = o.brightness; contrast = o.contrast; saturation = o.saturation; uiScale = o.uiScale; textScale = o.textScale;
         minDist = o.minDist; animSpeed = o.animSpeed; headSens = o.headSens; headSmooth = o.headSmooth;
         background = o.background; camBrightness = o.camBrightness; camContrast = o.camContrast; camOpacity = o.camOpacity;
@@ -75,6 +77,7 @@ final class Config {
         vignette = p.getFloat(k + "vig", vignette);
         resScale = p.getFloat(k + "res2", resScale);
         webGpu = p.getBoolean(k + "webgpu", webGpu);
+        rememberLayout = p.getBoolean(k + "remember", rememberLayout);
         stereo3d = p.getFloat(k + "s3d", stereo3d);
         brightness = p.getFloat(k + "bri", brightness);
         contrast = p.getFloat(k + "con", contrast);
@@ -113,7 +116,7 @@ final class Config {
                 .putBoolean(k + "stereo", stereo).putFloat(k + "ipd", ipdMm).putFloat(k + "eyeScale", eyeScale)
                 .putFloat(k + "fov", fovDeg).putBoolean(k + "dist", distortion).putFloat(k + "k1", k1).putFloat(k + "k2", k2)
                 .putFloat(k + "ax", alignXmm).putFloat(k + "ay", alignYmm).putFloat(k + "vig", vignette)
-                .putFloat(k + "res2", resScale).putBoolean(k + "webgpu", webGpu).putFloat(k + "s3d", stereo3d).putFloat(k + "bri", brightness)
+                .putFloat(k + "res2", resScale).putBoolean(k + "webgpu", webGpu).putBoolean(k + "remember", rememberLayout).putFloat(k + "s3d", stereo3d).putFloat(k + "bri", brightness)
                 .putFloat(k + "con", contrast).putFloat(k + "sat", saturation).putFloat(k + "ui2", uiScale).putFloat(k + "txt", textScale)
                 .putFloat(k + "minD", minDist).putFloat(k + "anim", animSpeed).putFloat(k + "hs", headSens)
                 .putFloat(k + "hsm", headSmooth).putInt(k + "bg", background).putFloat(k + "cbri", camBrightness)

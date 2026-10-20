@@ -6,6 +6,7 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 
 - **Visão binocular**: uma imagem para cada olho, com paralaxe de verdade (elementos próximos e distantes têm profundidade diferente), correção de distorção da lente e centros dos olhos posicionados pela IPD em milímetros reais.
 - **Dock flutuante** com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu. No modo espacial ele fica **fixo no ambiente**: quando você vira a cabeça, ele fica no lugar (como uma janela), e uma seta na borda mostra onde ele está. Volume − (ou Ajustes → Recentralizar) traz o dock para a sua frente. Para mover, faça a pinça na barrinha embaixo dele e arraste. Para ele seguir a cabeça, ligue a opção em Ajustes → Dock.
+- **Barra de rolagem** ao lado do Navegador e do YouTube: arraste a barrinha (pinça, A ou toque) para rolar a página, como no Chrome; clicar no trilho pula uma tela.
 - **YouTube** como app próprio, com pesquisa pelo teclado virtual, vídeos tocando dentro da janela e botão de **modo cinema** (tela grande). O Navegador também tem esse botão.
 - **Gravar a realidade mista**: no app Câmera, o botão vermelho grava um vídeo em tela cheia (sem dividir os olhos), com a câmera de fundo, as janelas por cima e o som do microfone. O vídeo vai para a galeria do celular, em Filmes › Visão Box, e para o app Arquivos.
 - **Teclado virtual flutuante e móvel**, com letras, números, símbolos e acentos. Ele digita nas páginas (abre sozinho ao tocar num campo de texto), na barra de endereço ou pesquisa do Navegador e no app Notas.
@@ -31,6 +32,17 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 5.0
+
+- **Navegador com abas** (até 8), **★ favoritos**, **histórico**, **página inicial** com favoritos e recentes, botão de casa e **modo computador** (ícone de monitor nas abas).
+- **Apps web**: WhatsApp Web, Instagram e X no app Web. O WhatsApp abre sozinho em modo computador. Espelhar os apps instalados no celular não é possível: o Android não deixa um app mostrar a tela de outro.
+- **Mídia**: vídeos e músicas do celular, tocando na janela **Player** (com modo cinema e avançar/voltar).
+- **Ambientes 360°**: Espaço, Praia, Pôr do sol e Sala de cinema (Ajustes → Fundo).
+- **Comando de voz** (ícone de microfone no dock, ou **R3** no controle). Exemplos: "abrir YouTube", "pesquisar receita de bolo", "tocar Coldplay", "fechar", "fechar tudo", "recentralizar", "gravar", "parar", "tirar foto", "modo cinema", "teclado". Com o teclado aberto, o que você fala é digitado.
+- **Lembrar as janelas**: ao reabrir o app, as janelas, as abas e as páginas voltam onde estavam.
+- **Nave**: jogo de nave. Analógico esquerdo (ou a mira) move, **A** ou pinça atira.
+- **Janelas presas a QR codes**: aponte a câmera para um QR code e aperte **📌** na barra da janela. A janela gruda no QR e acompanha o objeto real. Aperte de novo para soltar.
+
 ## Controle de Xbox / Bluetooth (recomendado)
 
 A mira fica no centro da visão: você aponta com a cabeça e confirma no controle. É bem mais leve que o rastreamento das mãos, que vem **desligado** e pode ser ligado em Ajustes.
@@ -49,6 +61,7 @@ A mira fica no centro da visão: você aponta com a cabeça e confirma no contro
 | Analógico direito | rolar a página (como um dedo arrastando) / trocar foto |
 | Setinhas ↑ ↓ | rolar a página aos pedaços (segurar continua) |
 | Setinhas ← → | mover a mira |
+| R3 (apertar o analógico direito) | comando de voz |
 
 O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo, para testar.
 
@@ -74,7 +87,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 | `Config.java` | configurações e perfis |
 | `Gfx.java` / `Synth.java` | desenho e sons |
 | `MainActivity.java` | galeria, arquivos, permissões, teclado, controle |
-| `WebPane.java` | um navegador (Navegador ou YouTube) e a captura da página |
+| `WebPane.java` | uma página (aba, YouTube ou Player): captura, rolagem, modo computador e arquivos de mídia |
 
 ## Gerar o APK
 

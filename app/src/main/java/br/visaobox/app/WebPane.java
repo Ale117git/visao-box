@@ -17,6 +17,10 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
+import android.content.res.AssetFileDescriptor;
+import android.net.Uri;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -33,7 +37,14 @@ final class WebPane {
 
     static final int WIDTH = 960;     // menor largura = letras maiores dentro da janela
 
+    interface PageListener { void onPage(int id, String title, String url); }
+
+    static final String LOCAL = "https://visaobox.local/";
+    static final String DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
     final int id;
+    private final PageListener listener;
+    boolean desktop;
     private final Activity act;
     private final FrameLayout root;
     private final Handler main;
@@ -57,8 +68,60 @@ final class WebPane {
     // captura por software
     private Bitmap swA, swB;
 
-    WebPane(int id, Activity act, FrameLayout root, Handler main, String homeUrl) {
-        this.id = id; this.act = act; this.root = root; this.main = main; this.homeUrl = homeUrl;
+    /** homeUrl = null: abre na página inicial do Visão Box (favoritos e recentes). */
+    WebPane(int id, Activity act, FrameLayout root, Handler main, String homeUrl, PageListener listener) {
+        this.id = id; this.act = act; this.root = root; this.main = main; this.homeUrl = homeUrl; this.listener = listener;
+    }
+
+    boolean isHome() { return url.isEmpty() || url.startsWith("about:blank"); }
+
+    void goHome() { if (web != null) web.loadUrl("about:blank"); url = ""; title = ""; }
+
+    void setDesktop(boolean on) {
+        desktop = on;
+        if (web == null) return;
+        WebSettings s = web.getSettings();
+        s.setUserAgentString(on ? DESKTOP_UA : null);
+        if (!isHome()) web.reload();
+    }
+
+    /** Toca uma página gerada aqui (player de vídeo e música). */
+    void loadHtml(String html) {
+        if (web == null) open();
+        web.loadDataWithBaseURL(LOCAL + "player", html, "text/html", "utf-8", null);
+    }
+
+    /** Entrega arquivos do celular (content://) para o player, com suporte a avançar/voltar o vídeo. */
+    private WebResourceResponse media(Uri uri, java.util.Map<String, String> headers) {
+        try {
+            AssetFileDescriptor afd = act.getContentResolver().openAssetFileDescriptor(uri, "r");
+            if (afd == null) return null;
+            long len = afd.getLength();
+            java.io.InputStream in = afd.createInputStream();
+            String mime = act.getContentResolver().getType(uri);
+            if (mime == null) mime = "video/mp4";
+            java.util.Map<String, String> out = new java.util.HashMap<>();
+            out.put("Accept-Ranges", "bytes");
+            out.put("Access-Control-Allow-Origin", "*");
+            String range = null;
+            if (headers != null) for (java.util.Map.Entry<String, String> e : headers.entrySet())
+                if ("range".equalsIgnoreCase(e.getKey())) range = e.getValue();
+            if (range != null && len > 0 && range.startsWith("bytes=")) {
+                String[] p = range.substring(6).split("-");
+                long start = p.length > 0 && !p[0].isEmpty() ? Long.parseLong(p[0].trim()) : 0;
+                long end = p.length > 1 && !p[1].isEmpty() ? Long.parseLong(p[1].trim()) : len - 1;
+                end = Math.min(end, len - 1);
+                long skipped = 0;
+                while (skipped < start) { long k = in.skip(start - skipped); if (k <= 0) break; skipped += k; }
+                out.put("Content-Range", "bytes " + start + "-" + end + "/" + len);
+                out.put("Content-Length", String.valueOf(end - start + 1));
+                return new WebResourceResponse(mime, null, 206, "Partial Content", out, in);
+            }
+            if (len > 0) out.put("Content-Length", String.valueOf(len));
+            return new WebResourceResponse(mime, null, 200, "OK", out, in);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     static boolean gpuSupported() { return Build.VERSION.SDK_INT >= 29; }
@@ -74,13 +137,30 @@ final class WebPane {
         s.setLoadWithOverviewMode(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         web.setBackgroundColor(Color.WHITE);
-        web.setWebViewClient(new WebViewClient());
+        if (desktop) s.setUserAgentString(DESKTOP_UA);
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView v, String u) {
+                if (listener != null && u != null && u.startsWith("http") && !u.startsWith(LOCAL)) listener.onPage(id, v.getTitle(), u);
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                Uri u = r.getUrl();
+                if (u != null && "visaobox.local".equals(u.getHost()) && "/media".equals(u.getPath())) {
+                    String q = u.getQueryParameter("u");
+                    if (q != null) return media(Uri.parse(q), r.getRequestHeaders());
+                }
+                return null;
+            }
+        });
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onReceivedTitle(WebView v, String t) { title = t == null ? "" : t; }
         });
         // fica atrás da tela VR; a imagem dele é levada para a janela
         root.addView(web, 0, new FrameLayout.LayoutParams(WIDTH, h));
-        web.loadUrl(pending != null ? pending : homeUrl);
+        if (pending != null) web.loadUrl(pending);
+        else if (homeUrl != null) web.loadUrl(homeUrl);
         pending = null;
     }
 
@@ -119,6 +199,7 @@ final class WebPane {
             if (!gpu) closeReader();
         }
         if (!visible || web.getWidth() == 0 || web.getHeight() == 0) return;
+        pollMetrics(now);
         if (gpuMode) captureGpu();
         else if (now - lastSw > 140) { lastSw = now; captureSoftware(); }
     }
@@ -214,16 +295,20 @@ final class WebPane {
         }
     };
 
+    private long evClock;
+
+    /** Horário do evento sempre crescente (eventos "voltando no tempo" eram descartados pela página). */
+    private long clock(long now) { evClock = Math.max(now, evClock + 1); return evClock; }
+
     private void send(int action, float x, float y, long down, long time) {
         MotionEvent ev = MotionEvent.obtain(down, time, action, x, y, 0);
         web.dispatchTouchEvent(ev);
         ev.recycle();
     }
 
-    /** Solta o dedo parado (sem "arremesso"), para a página não sair rolando sozinha. */
+    /** Solta o dedo cancelando o gesto: a página para onde está, sem sair rolando sozinha. */
     private void finishDrag(long now) {
-        send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, now + 100);
-        send(MotionEvent.ACTION_UP, dragX, dragY, dragDown, now + 200);
+        send(MotionEvent.ACTION_CANCEL, dragX, dragY, dragDown, clock(now));
         dragging = false;
     }
 
@@ -231,31 +316,63 @@ final class WebPane {
         if (web == null || web.getWidth() == 0) return;
         long now = SystemClock.uptimeMillis();
         float w = web.getWidth(), hh = web.getHeight();
+        float nx = dragX - dx, ny = dragY - dy;          // o dedo anda ao contrário da rolagem
+        boolean out = nx < w * .06f || nx > w * .94f || ny < hh * .06f || ny > hh * .94f;
+        if (dragging && out) finishDrag(now);
         if (!dragging) {
-            dragX = w / 2; dragY = hh / 2;
-            dragDown = now;
-            send(MotionEvent.ACTION_DOWN, dragX, dragY, dragDown, now);
-            dragging = true;
-        }
-        // o dedo anda ao contrário da rolagem
-        float nx = dragX - dx, ny = dragY - dy;
-        if (nx < w * .08f || nx > w * .92f || ny < hh * .08f || ny > hh * .92f) {
-            // chegou na borda: solta e começa de novo no meio
-            finishDrag(now);
-            dragX = w / 2; dragY = hh / 2;
-            dragDown = now + 210;
+            // começa do lado oposto ao movimento, para ter bastante espaço antes de recomeçar
+            dragX = dx > 0 ? w * .85f : dx < 0 ? w * .15f : w / 2;
+            dragY = dy > 0 ? hh * .88f : dy < 0 ? hh * .12f : hh / 2;
+            dragDown = clock(now);
             send(MotionEvent.ACTION_DOWN, dragX, dragY, dragDown, dragDown);
             dragging = true;
             nx = dragX - dx; ny = dragY - dy;
-            dragX = nx; dragY = ny;
-            send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, dragDown + 16);
-        } else {
-            dragX = nx; dragY = ny;
-            send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, now);
         }
+        dragX = Gfx.clamp(nx, 1, w - 1);
+        dragY = Gfx.clamp(ny, 1, hh - 1);
+        send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, clock(now));
         lastDragMove = now;
         main.removeCallbacks(endDrag);
         main.postDelayed(endDrag, 160);
+    }
+
+    /* ---------------- barra de rolagem ---------------- */
+
+    /** [posição, altura total, altura visível] da parte da página que rola (em px da página), ou null. */
+    volatile float[] metrics;
+    private long lastMetrics;
+
+    // acha o que realmente rola: a página inteira ou uma caixa interna (comum no YouTube)
+    private static final String FIND_SCROLLER =
+            "function vbSc(){var el=document.elementFromPoint(innerWidth/2,innerHeight/2);"
+            + "while(el&&el!==document.body&&el!==document.documentElement){var s=getComputedStyle(el);"
+            + "if((s.overflowY=='auto'||s.overflowY=='scroll')&&el.scrollHeight>el.clientHeight+20)return el;el=el.parentElement;}"
+            + "return document.scrollingElement||document.documentElement;}"
+            + "function vbIsDoc(e){return e===document.scrollingElement||e===document.documentElement||e===document.body;}";
+
+    private void pollMetrics(long now) {
+        if (now - lastMetrics < 250) return;
+        lastMetrics = now;
+        web.evaluateJavascript("(function(){" + FIND_SCROLLER
+                + "var e=vbSc();var d=vbIsDoc(e);var t=d?(window.scrollY||e.scrollTop):e.scrollTop;"
+                + "var h=d?innerHeight:e.clientHeight;return t+','+e.scrollHeight+','+h;})()", v -> {
+            try {
+                String[] p = v.replace("\"", "").split(",");
+                float t = Float.parseFloat(p[0]), sh = Float.parseFloat(p[1]), vh = Float.parseFloat(p[2]);
+                metrics = sh > vh + 4 ? new float[]{t, sh, vh} : null;
+            } catch (Throwable e) { metrics = null; }
+        });
+    }
+
+    /** Leva a página para uma posição (0 = topo, 1 = fim). */
+    void scrollTo(float frac) {
+        if (web == null) return;
+        float f = Gfx.clamp(frac, 0, 1);
+        web.evaluateJavascript("(function(){" + FIND_SCROLLER
+                + "var e=vbSc();var d=vbIsDoc(e);var h=d?innerHeight:e.clientHeight;var t=" + f + "*(e.scrollHeight-h);"
+                + "if(d)window.scrollTo(0,t);else e.scrollTop=t;})()", null);
+        float[] m = metrics;
+        if (m != null) metrics = new float[]{f * (m[1] - m[2]), m[1], m[2]};
     }
 
     void back() { if (web != null && web.canGoBack()) web.goBack(); }

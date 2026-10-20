@@ -10,8 +10,8 @@ android {
         applicationId = "br.visaobox.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 12
-        versionName = "4.5"
+        versionCode = 14
+        versionName = "5.0"
     }
 
     signingConfigs {
@@ -47,6 +47,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("com.google.guava:guava:33.2.1-android")
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
 }
 
 // Baixa os modelos de visão computacional durante a compilação (ficam dentro do app e funcionam offline)
