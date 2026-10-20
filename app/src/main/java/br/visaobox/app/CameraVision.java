@@ -5,10 +5,8 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.graphics.SurfaceTexture;
 import android.os.SystemClock;
 import android.util.Size;
-import android.view.Surface;
 
 import androidx.activity.ComponentActivity;
 import androidx.annotation.NonNull;
@@ -17,7 +15,6 @@ import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.ImageProxy;
-import androidx.camera.core.Preview;
 import androidx.camera.core.resolutionselector.AspectRatioStrategy;
 import androidx.camera.core.resolutionselector.ResolutionSelector;
 import androidx.camera.core.resolutionselector.ResolutionStrategy;
@@ -74,9 +71,7 @@ final class CameraVision {
     private final List<String> camNames = new ArrayList<>();
     private int camIdx = 0;
     private volatile boolean mirror = false;
-    private volatile SurfaceTexture surfaceTexture;
     private ImageCapture capture;
-    private boolean wanted = false;
 
     // memória reaproveitada
     private final Bitmap[] ring = new Bitmap[3];
@@ -88,10 +83,6 @@ final class CameraVision {
     CameraVision(ComponentActivity act, VrView vr, Config cfg) {
         this.act = act; this.vr = vr; this.cfg = cfg;
         this.mainExec = ContextCompat.getMainExecutor(act);
-        vr.setCameraSurfaceListener(st -> mainExec.execute(() -> {
-            surfaceTexture = st;
-            if (wanted && provider != null) bind();
-        }));
     }
 
     /* ---------------- modelos ---------------- */
@@ -203,7 +194,6 @@ final class CameraVision {
     /* ---------------- câmera ---------------- */
 
     void start() {
-        wanted = true;
         vr.camError = null;
         final ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(act);
         future.addListener(() -> {
@@ -227,27 +217,6 @@ final class CameraVision {
             catch (Exception ignored) { }
         }
         camIdx = cams.isEmpty() ? 0 : Math.max(0, Math.min(cams.size() - 1, cfg.cameraIndex));
-    }
-
-    private Preview makePreview() {
-        ResolutionSelector rs = new ResolutionSelector.Builder()
-                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                .setResolutionStrategy(new ResolutionStrategy(new Size(1280, 960),
-                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
-                .build();
-        Preview preview = new Preview.Builder().setResolutionSelector(rs).build();
-        preview.setSurfaceProvider(mainExec, request -> {
-            SurfaceTexture st = surfaceTexture;
-            if (st == null) { request.willNotProvideSurface(); return; }
-            Size res = request.getResolution();
-            st.setDefaultBufferSize(res.getWidth(), res.getHeight());
-            vr.camBufW = res.getWidth();
-            vr.camBufH = res.getHeight();
-            request.setTransformationInfoListener(mainExec, info -> vr.camRot = info.getRotationDegrees());
-            Surface surface = new Surface(st);
-            request.provideSurface(surface, mainExec, result -> surface.release());
-        });
-        return preview;
     }
 
     private ImageAnalysis makeAnalysis() {
@@ -275,28 +244,18 @@ final class CameraVision {
         mirror = name.equals("Câmera frontal");
         vr.mirror = mirror;
         CameraSelector sel = cams.get(camIdx);
-        Preview preview = surfaceTexture != null ? makePreview() : null;
         ImageCapture cap = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
         try {
-            // 1ª tentativa: imagem ao vivo + análise + foto
-            if (preview != null) provider.bindToLifecycle(act, sel, preview, makeAnalysis(), cap);
-            else provider.bindToLifecycle(act, sel, makeAnalysis(), cap);
+            // imagem (já em pé) para a tela e as mãos + foto em resolução cheia
+            provider.bindToLifecycle(act, sel, makeAnalysis(), cap);
             capture = cap;
         } catch (Exception e1) {
             provider.unbindAll();
             try {
-                // 2ª: sem a foto em resolução cheia
-                if (preview != null) provider.bindToLifecycle(act, sel, makePreview(), makeAnalysis());
-                else provider.bindToLifecycle(act, sel, makeAnalysis());
+                provider.bindToLifecycle(act, sel, makeAnalysis());
             } catch (Exception e2) {
-                provider.unbindAll();
-                try {
-                    // 3ª: só a análise (a imagem vai pela textura de reserva)
-                    provider.bindToLifecycle(act, sel, makeAnalysis());
-                } catch (Exception e3) {
-                    vr.camError = "Não consegui abrir a " + name.toLowerCase() + ": " + e3.getMessage();
-                    return;
-                }
+                vr.camError = "Não consegui abrir a " + name.toLowerCase() + ": " + e2.getMessage();
+                return;
             }
         }
         vr.camError = null;
@@ -385,7 +344,7 @@ final class CameraVision {
             if (segBusy && ts - segSent > 1500) segBusy = false;
 
             HandLandmarker hl = hand;
-            if (cfg.handInput && hl != null && !handBusy) {
+            if (cfg.handInput && hl != null && !handBusy && ts - handSent >= 45) {   // ~20 por segundo bastam para a pinça
                 handBusy = true; handSent = ts;
                 try { hl.detectAsync(new BitmapImageBuilder(frame).build(), ts); } catch (Throwable t) { handBusy = false; }
             }

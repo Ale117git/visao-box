@@ -10,8 +10,8 @@ android {
         applicationId = "br.visaobox.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "4.0"
+        versionCode = 7
+        versionName = "4.1"
     }
 
     signingConfigs {

@@ -39,11 +39,11 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 
 ## Desempenho (motor OpenGL ES)
 
-- A imagem da câmera vai direto para a placa de vídeo (textura externa), sem cópias.
-- A interface de cada olho é desenhada com Canvas acelerado por hardware numa textura.
+- A imagem da câmera chega já em pé (o próprio CameraX gira) e é enviada à placa de vídeo reaproveitando a memória.
+- A interface é desenhada **uma vez por quadro** com Canvas acelerado por hardware; o 3D de cada olho é feito no shader, deslocando a imagem.
 - Um shader GLSL junta câmera, recorte de pessoas, interface, cores e vinheta numa passada só.
 - A distorção da lente é feita por uma malha de vértices.
-- O reconhecimento de mãos usa a GPU quando dá (com reserva no processador) e acompanha uma mão.
+- O reconhecimento de mãos usa a GPU quando dá (com reserva no processador), acompanha uma mão e roda até ~20 vezes por segundo.
 - A análise da câmera reaproveita a memória a cada quadro, sem pausas para limpeza de memória.
 
 ## Módulos (app/src/main/java/br/visaobox/app)

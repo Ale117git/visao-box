@@ -60,16 +60,10 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public volatile String camLabel = "";
     public volatile boolean calibration = false;
     public volatile boolean mirror = false;
-    public volatile int camRot = 0, camBufW = 0, camBufH = 0;
     public volatile boolean navVisible;
     public volatile int openWindows;
     public volatile boolean webFocusedNow;
 
-    public interface CameraSurfaceListener { void onCameraSurface(SurfaceTexture st); }
-    private volatile CameraSurfaceListener camListener;
-    private volatile SurfaceTexture camST;
-    private volatile boolean camFrameNew;
-    private volatile long lastCamFrame;
 
     /* ---------- geometria (pixels da tela) ---------- */
     private volatile int W, H, n = 2;
@@ -80,14 +74,14 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
 
     /* ---------- GL ---------- */
     private int prog, aPos, aScene;
-    private int uUiS, uUiT, uUiMat, uBackMat, uCamS, uCamT, uCamMat, uUpS, uUpT;
-    private int uCam, uCam2D, uUi, uBack, uMask, uBg, uHasBack, uSeg, uMaskTexel, uCamAdj, uAdj, uVigR;
-    private int camTex, cam2DTex, maskTex;
-    private final float[] camMat = new float[16], ident = new float[16];
+    private int uUiS, uUiT, uUiMat, uBackMat, uUpS, uUpT;
+    private int uCam2D, uUi, uBack, uMask, uBg, uHasBack, uSeg, uMaskTexel, uCamAdj, uAdj, uVigR;
+    private int cam2DTex, maskTex;
+    private final float[] ident = new float[16];
     private long cam2DStamp = -1, maskStampGl = -1;
     private int cam2DW, cam2DH, maskTexW, maskTexH;
     private ByteBuffer maskBuf;
-    private final Layer[] front = new Layer[2], back = new Layer[2];
+    private Layer front, back;          // a interface é desenhada UMA vez por quadro; o 3D sai do shader
     private final FloatBuffer[] meshPos = new FloatBuffer[2], meshScene = new FloatBuffer[2];
     private ShortBuffer meshIdx;
     private int meshCount;
@@ -95,6 +89,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
 
     // câmera na cena
     private float camX0, camY0, camDW, camDH, upW = 4, upH = 3;
+    private long lastFrameSeen, frameSeenAt;
 
     // cabeça suavizada
     private float sYaw, sPitch, sRoll;
@@ -141,7 +136,6 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             s[2] = .4f + r.nextFloat() * .6f;
         }
         Matrix.setIdentityM(ident, 0);
-        Matrix.setIdentityM(camMat, 0);
         setEGLContextClientVersion(2);
         setPreserveEGLContextOnPause(true);
         setRenderer(this);
@@ -154,27 +148,21 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     /** Roda uma ação na thread da tela (onde vive a interface). */
     void onGl(Runnable r) { queueEvent(r); }
 
-    void setCameraSurfaceListener(CameraSurfaceListener l) {
-        camListener = l;
-        SurfaceTexture st = camST;
-        if (l != null && st != null) l.onCameraSurface(st);
-    }
-
     /* ================= shaders ================= */
 
     private static final String VS =
             "attribute vec2 aPos;\n" +
             "attribute vec2 aScene;\n" +
             "uniform vec3 uUiS; uniform vec3 uUiT; uniform mat4 uUiMat; uniform mat4 uBackMat;\n" +
-            "uniform vec3 uCamS; uniform vec3 uCamT; uniform mat4 uCamMat;\n" +
+
             "uniform vec3 uUpS; uniform vec3 uUpT;\n" +
-            "varying vec2 vUi; varying vec2 vBack; varying vec2 vCam; varying vec2 vUp; varying vec2 vScene;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene;\n" +
             "void main() {\n" +
             "  vec3 p = vec3(aScene, 1.0);\n" +
             "  vec4 u = vec4(dot(p, uUiS), dot(p, uUiT), 0.0, 1.0);\n" +
             "  vUi = (uUiMat * u).xy;\n" +
             "  vBack = (uBackMat * u).xy;\n" +
-            "  vCam = (uCamMat * vec4(dot(p, uCamS), dot(p, uCamT), 0.0, 1.0)).xy;\n" +
+
             "  vUp = vec2(dot(p, uUpS), dot(p, uUpT));\n" +
             "  vScene = aScene;\n" +
             "  gl_Position = vec4(aPos, 0.0, 1.0);\n" +
@@ -183,11 +171,11 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     private static final String FS =
             "#extension GL_OES_EGL_image_external : require\n" +
             "precision mediump float;\n" +
-            "uniform samplerExternalOES uCam; uniform sampler2D uCam2D;\n" +
+            "uniform sampler2D uCam2D;\n" +
             "uniform samplerExternalOES uUi; uniform samplerExternalOES uBack; uniform sampler2D uMask;\n" +
             "uniform int uBg; uniform int uHasBack; uniform int uSeg;\n" +
             "uniform vec2 uMaskTexel; uniform vec4 uCamAdj; uniform vec4 uAdj; uniform float uVigR;\n" +
-            "varying vec2 vUi; varying vec2 vBack; varying vec2 vCam; varying vec2 vUp; varying vec2 vScene;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene;\n" +
             "void main() {\n" +
             "  vec4 ui = texture2D(uUi, vUi);\n" +
             "  vec3 col;\n" +
@@ -195,8 +183,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             "    col = ui.rgb;\n" +
             "  } else {\n" +
             "    bool inside = vUp.x >= 0.0 && vUp.x <= 1.0 && vUp.y >= 0.0 && vUp.y <= 1.0;\n" +
-            "    vec3 cam;\n" +
-            "    if (uBg == 0) cam = texture2D(uCam, vCam).rgb; else cam = texture2D(uCam2D, vUp).rgb;\n" +
+            "    vec3 cam = texture2D(uCam2D, vUp).rgb;\n" +
             "    if (!inside) cam = vec3(0.03);\n" +
             "    cam = clamp((cam - 0.5) * uCamAdj.y + 0.5 + uCamAdj.x, 0.0, 1.0) * uCamAdj.z * uCamAdj.w;\n" +
             "    vec3 base = cam;\n" +
@@ -281,12 +268,8 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         uUiT = GLES20.glGetUniformLocation(p, "uUiT");
         uUiMat = GLES20.glGetUniformLocation(p, "uUiMat");
         uBackMat = GLES20.glGetUniformLocation(p, "uBackMat");
-        uCamS = GLES20.glGetUniformLocation(p, "uCamS");
-        uCamT = GLES20.glGetUniformLocation(p, "uCamT");
-        uCamMat = GLES20.glGetUniformLocation(p, "uCamMat");
         uUpS = GLES20.glGetUniformLocation(p, "uUpS");
         uUpT = GLES20.glGetUniformLocation(p, "uUpT");
-        uCam = GLES20.glGetUniformLocation(p, "uCam");
         uCam2D = GLES20.glGetUniformLocation(p, "uCam2D");
         uUi = GLES20.glGetUniformLocation(p, "uUi");
         uBack = GLES20.glGetUniformLocation(p, "uBack");
@@ -299,17 +282,11 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         uAdj = GLES20.glGetUniformLocation(p, "uAdj");
         uVigR = GLES20.glGetUniformLocation(p, "uVigR");
 
-        camTex = genOes();
-        SurfaceTexture st = new SurfaceTexture(camTex);
-        st.setOnFrameAvailableListener(s -> { camFrameNew = true; lastCamFrame = SystemClock.uptimeMillis(); });
-        camST = st;
         cam2DTex = gen2D();
         maskTex = gen2D();
         cam2DStamp = -1; maskStampGl = -1; cam2DW = cam2DH = maskTexW = maskTexH = 0;
-        front[0] = front[1] = back[0] = back[1] = null;
+        front = null; back = null;
         meshKey = "";
-        CameraSurfaceListener l = camListener;
-        if (l != null) onGl(() -> l.onCameraSurface(st));
     }
 
     @Override
@@ -346,22 +323,14 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             boolean segOn = camBg && cfg.segMode != Config.SEG_OFF && segReady && maskData != null;
             boolean useBack = segOn && ui.anyBehind();
 
-            // 1) interface de cada olho (Canvas acelerado)
-            for (int e = 0; e < n; e++) {
-                int sign = n == 2 ? (e == 0 ? 1 : -1) : 0;
-                drawLayer(front[e], e, sign, useBack ? 2 : 0, camBg, now);
-                if (useBack) drawLayer(back[e], e, sign, 1, camBg, now);
-            }
+            // 1) interface: desenhada uma vez só (Canvas acelerado); o 3D de cada olho sai do shader
+            drawLayer(front, useBack ? 2 : 0, camBg, now);
+            if (useBack) drawLayer(back, 1, camBg, now);
             // 2) pega as imagens novas
-            SurfaceTexture st = camST;
-            if (camFrameNew && st != null) {
-                camFrameNew = false;
-                try { st.updateTexImage(); st.getTransformMatrix(camMat); } catch (Throwable ignored) { }
-            }
-            for (int e = 0; e < n; e++) { front[e].latch(); if (useBack) back[e].latch(); }
-            boolean camLive = now - lastCamFrame < 1200;
-            int bgMode = !camBg ? 2 : (camLive ? 0 : (frame != null ? 1 : 0));
-            if (bgMode == 1) upload2D();
+            front.latch();
+            if (useBack) back.latch();
+            int bgMode = camBg ? 0 : 2;
+            if (camBg) upload2D();
             if (segOn) uploadMask();
 
             // 3) junta tudo no shader
@@ -394,16 +363,13 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             eyeCX[0] = W / 2f; eyeCY[0] = H / 2f;
         }
         distNow = distorted(); k1Now = cfg.k1; k2Now = cfg.k2;
-        int bw = Math.max(64, Math.round(eyeW * cfg.resScale)), bh = Math.max(64, Math.round(eyeH * cfg.resScale));
-        for (int e = 0; e < 2; e++) {
-            if (e < n) {
-                if (front[e] == null || front[e].w != bw || front[e].h != bh) {
-                    if (front[e] != null) front[e].release();
-                    if (back[e] != null) { back[e].release(); back[e] = null; }
-                    front[e] = new Layer(bw, bh);
-                }
-                if (back[e] == null) back[e] = new Layer(bw, bh);
-            }
+        float rs = Math.min(cfg.resScale, 1000f / Math.max(1, eyeH));     // limita o tamanho da camada
+        int bw = Math.max(64, Math.round(eyeW * rs)), bh = Math.max(64, Math.round(eyeH * rs));
+        if (front == null || front.w != bw || front.h != bh) {
+            if (front != null) front.release();
+            if (back != null) back.release();
+            front = new Layer(bw, bh);
+            back = new Layer(bw, bh);
         }
         String key = W + ":" + H + ":" + n + ":" + eyeW + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + distNow;
         if (!key.equals(meshKey)) { meshKey = key; buildMesh(); }
@@ -463,14 +429,10 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     /* ================= câmera ================= */
 
     private void mapCamera(long now) {
-        boolean live = now - lastCamFrame < 1200 && camBufW > 0;
-        if (live) {
-            boolean swap = camRot == 90 || camRot == 270;
-            upW = swap ? camBufH : camBufW; upH = swap ? camBufW : camBufH;
-        } else {
-            Bitmap f = frame;
-            if (f != null) { upW = f.getWidth(); upH = f.getHeight(); }
-        }
+        Bitmap f = frame;
+        if (f != null) { upW = f.getWidth(); upH = f.getHeight(); }
+        long st = frameStamp;
+        if (st != lastFrameSeen) { lastFrameSeen = st; frameSeenAt = now; }
         float aspect = eyeW / eyeH;
         float s = Math.max(aspect / upW, 1f / upH) * cfg.camZoom;
         camDW = upW * s; camDH = upH * s;
@@ -520,18 +482,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         float a = 1f / camDW, c0 = -camX0 / camDW, b = 1f / camDH, d0 = -camY0 / camDH;
         float[] uS = mirror ? new float[]{-a, 0, 1 - c0} : new float[]{a, 0, c0};
         float[] uT = {0, b, d0};
-        // da câmera em pé para o buffer do sensor (rotação) e depois para (s, t)
-        float[] sS, sT;
-        switch (camRot) {
-            case 90: sS = uT; sT = uS; break;
-            case 180: sS = one(uS); sT = uT; break;
-            case 270: sS = one(uT); sT = one(uS); break;
-            default: sS = uS; sT = one(uT); break;
-        }
 
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, camTex);
-        GLES20.glUniform1i(uCam, 0);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, cam2DTex);
         GLES20.glUniform1i(uCam2D, 1);
@@ -539,11 +490,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTex);
         GLES20.glUniform1i(uMask, 4);
 
-        GLES20.glUniform3f(uUiS, 1f / (eyeW / eyeH), 0, .5f);
         GLES20.glUniform3f(uUiT, 0, -1, .5f);
-        GLES20.glUniform3f(uCamS, sS[0], sS[1], sS[2]);
-        GLES20.glUniform3f(uCamT, sT[0], sT[1], sT[2]);
-        GLES20.glUniformMatrix4fv(uCamMat, 1, false, camMat, 0);
         GLES20.glUniform3f(uUpS, uS[0], uS[1], uS[2]);
         GLES20.glUniform3f(uUpT, uT[0], uT[1], uT[2]);
         GLES20.glUniform1i(uBg, bgMode);
@@ -559,7 +506,11 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         if (n == 2) GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
         for (int e = 0; e < n; e++) {
             if (n == 2) GLES20.glScissor(e == 0 ? 0 : W / 2, 0, W / 2, H);
-            Layer fl = front[e], bl = useBack ? back[e] : front[e];
+            Layer fl = front, bl = useBack ? back : front;
+            // paralaxe: cada olho vê a interface deslocada como se estivesse a ~1,5 m
+            int sign = n == 2 ? (e == 0 ? 1 : -1) : 0;
+            float aspect = eyeW / eyeH;
+            GLES20.glUniform3f(uUiS, 1f / aspect, 0, .5f - ui.shift(sign, 1.5f) / aspect);
             GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, fl.tex);
             GLES20.glUniform1i(uUi, 2);
@@ -583,12 +534,10 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
     }
 
-    /** 1 - x para uma função afim guardada como (a, b, c). */
-    private static float[] one(float[] v) { return new float[]{-v[0], -v[1], 1 - v[2]}; }
-
     /* ================= interface (Canvas acelerado) ================= */
 
-    private void drawLayer(Layer layer, int eye, int sign, int mode, boolean camBg, long now) {
+    private void drawLayer(Layer layer, int mode, boolean camBg, long now) {
+        final int sign = 0;
         Canvas c = layer.surface.lockHardwareCanvas();
         try {
             c.drawColor(0, PorterDuff.Mode.CLEAR);
@@ -597,11 +546,11 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             c.scale(layer.h, layer.h);
             g.c = c;
             if (calibration) {
-                drawCalibration(sign, eye);
+                drawCalibration();
             } else {
                 if (mode != 1) {
                     if (!camBg) drawBackground(sign);
-                    else if (frame == null && now - lastCamFrame > 1200) drawNoCamera();
+                    else if (frame == null || now - frameSeenAt > 2500) drawNoCamera();
                 }
                 if (mode == 1) ui.drawWindows(sign, 1, now);
                 else {
@@ -685,7 +634,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     }
 
     /** Tela de calibração: grade, círculos, cruz central e alvo de fusão. */
-    private void drawCalibration(int sign, int eye) {
+    private void drawCalibration() {
         Canvas c = g.c;
         float hw = eyeW / eyeH / 2f + .05f;
         g.fill.setColor(0xFF0A0C12);
@@ -699,10 +648,10 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         for (int i = 1; i <= 5; i++) g.ring(0, 0, i * .1f, .002f, 0x667CC4FF);
         g.line(-.04f, 0, .04f, 0, .003f, Color.WHITE);
         g.line(0, -.04f, 0, .04f, .003f, Color.WHITE);
-        g.txt(n == 2 ? (eye == 0 ? "OLHO ESQUERDO" : "OLHO DIREITO") : "TELA ÚNICA", 0, -.42f, .022f, 0xFF9FD3FF, Paint.Align.CENTER, g.medium);
+        g.txt("CALIBRAÇÃO DO VR BOX", 0, -.42f, .022f, 0xFF9FD3FF, Paint.Align.CENTER, g.medium);
         float[][] marks = {{0, -.48f}, {0, .48f}, {-.46f, 0}, {.46f, 0}};
         for (float[] m : marks) g.circle(m[0], m[1], .012f, 0xFFFFD27A);
-        float s = ui.shift(sign, 1.5f);
+        float s = 0;
         RectF t = new RectF(-.09f + s, .14f, .09f + s, .3f);
         g.glass(t, .02f, false, false);
         g.txt("1,5 m", s, .22f, .024f, Color.WHITE, Paint.Align.CENTER, g.medium);

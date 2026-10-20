@@ -19,7 +19,7 @@ final class Config {
     float k1 = 0.22f, k2 = 0.10f;   // coeficientes de distorção (barril)
     float alignXmm = 0f, alignYmm = 0f; // correção de alinhamento
     float vignette = 0.45f;         // escurecimento das bordas
-    float resScale = 0.8f;          // resolução de renderização (desempenho x nitidez)
+    float resScale = 0.75f;          // resolução de renderização (desempenho x nitidez)
     float stereo3d = 1f;            // intensidade da paralaxe
 
     // ---- Conforto ----
