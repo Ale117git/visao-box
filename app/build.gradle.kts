@@ -10,8 +10,8 @@ android {
         applicationId = "br.visaobox.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "2.0"
+        versionCode = 4
+        versionName = "3.0"
     }
 
     signingConfigs {
@@ -34,7 +34,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("task")
+        noCompress += listOf("task", "tflite")
     }
 }
 
@@ -49,17 +49,22 @@ dependencies {
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
 }
 
-// Baixa o modelo de reconhecimento de mãos durante a compilação (fica dentro do app, funciona offline)
-val modelFile = file("src/main/assets/hand_landmarker.task")
-val downloadModel by tasks.registering {
-    outputs.file(modelFile)
+// Baixa os modelos de visão computacional durante a compilação (ficam dentro do app e funcionam offline)
+val models = mapOf(
+    "hand_landmarker.task" to "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+    "selfie_segmenter.tflite" to "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite"
+)
+val downloadModels by tasks.registering {
+    val dir = file("src/main/assets")
     doLast {
-        if (!modelFile.exists() || modelFile.length() < 1000) {
-            modelFile.parentFile.mkdirs()
-            val url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
-            uri(url).toURL().openStream().use { input -> modelFile.outputStream().use { input.copyTo(it) } }
-            println("Modelo baixado: ${modelFile.length()} bytes")
+        dir.mkdirs()
+        models.forEach { (name, url) ->
+            val f = File(dir, name)
+            if (!f.exists() || f.length() < 1000) {
+                uri(url).toURL().openStream().use { input -> f.outputStream().use { input.copyTo(it) } }
+                println("Modelo baixado: $name (${f.length()} bytes)")
+            }
         }
     }
 }
-tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadModel) }
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(downloadModels) }
