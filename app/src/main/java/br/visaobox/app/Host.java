@@ -16,6 +16,11 @@ interface Host {
     void webReload();
     void webTouch(int action, float fx, float fy);
     void webAspect(float aspect);
+    String webUrl();
+    void webInsert(String text);
+    void webKey(int key);          // KEY_DEL ou KEY_ENTER
+    boolean webInputFocused();
+    int KEY_DEL = 1, KEY_ENTER = 2;
 
     // galeria e arquivos
     List<GalleryItem> galleryItems();

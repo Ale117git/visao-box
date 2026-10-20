@@ -46,7 +46,7 @@ final class Config {
     int cameraIndex = 0;
 
     // ---- Dock ----
-    float dockY = 0.30f, dockScale = 1f, dockDist = 1.2f, dockWidth = 1f;
+    float dockX = 0f, dockY = 0.30f, dockScale = 1f, dockDist = 1.2f, dockWidth = 1f;
 
     void copyFrom(Config o) {
         stereo = o.stereo; ipdMm = o.ipdMm; eyeScale = o.eyeScale; fovDeg = o.fovDeg; distortion = o.distortion;
@@ -56,7 +56,7 @@ final class Config {
         background = o.background; camBrightness = o.camBrightness; camContrast = o.camContrast; camOpacity = o.camOpacity;
         camZoom = o.camZoom; placement = o.placement; headTracking = o.headTracking; handInput = o.handInput;
         gazePointer = o.gazePointer; dwell = o.dwell; simple = o.simple; skeleton = o.skeleton; segMode = o.segMode;
-        cameraIndex = o.cameraIndex; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
+        cameraIndex = o.cameraIndex; dockX = o.dockX; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
     }
 
     void load(SharedPreferences p, String k) {
@@ -94,6 +94,7 @@ final class Config {
         skeleton = p.getBoolean(k + "skel", skeleton);
         segMode = p.getInt(k + "seg", segMode);
         cameraIndex = p.getInt(k + "cam", cameraIndex);
+        dockX = p.getFloat(k + "dx", dockX);
         dockY = p.getFloat(k + "dy", dockY);
         dockScale = p.getFloat(k + "ds", dockScale);
         dockDist = p.getFloat(k + "dd", dockDist);
@@ -114,7 +115,7 @@ final class Config {
                 .putInt(k + "place", placement).putBoolean(k + "track", headTracking).putBoolean(k + "hand", handInput)
                 .putBoolean(k + "gaze", gazePointer).putBoolean(k + "dwell", dwell).putBoolean(k + "simple", simple)
                 .putBoolean(k + "skel", skeleton).putInt(k + "seg", segMode).putInt(k + "cam", cameraIndex)
-                .putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)
+                .putFloat(k + "dx", dockX).putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)
                 .putFloat(k + "dw", dockWidth)
                 .putBoolean(k + "exists", true)
                 .apply();

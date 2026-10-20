@@ -125,7 +125,9 @@ final class SettingsPanel extends ScrollView {
         note("Controle Bluetooth: A / Enter / volume + tocam no ponteiro central; setas movem o ponteiro; B fecha a janela; volume − recentraliza.");
 
         section("Dock");
-        slider("Altura", .1f, .45f, .01f, () -> cfg.dockY, v -> cfg.dockY = v, v -> Math.round(v * 100) + "");
+        slider("Posição horizontal", -.45f, .45f, .01f, () -> cfg.dockX, v -> cfg.dockX = v, v -> Math.round(v * 100) + "");
+        slider("Altura", -.42f, .46f, .01f, () -> cfg.dockY, v -> cfg.dockY = v, v -> Math.round(v * 100) + "");
+        note("Você também pode arrastar o dock na própria tela: faça a pinça na barrinha embaixo dele e mova.");
         slider("Largura", .7f, 1.4f, .02f, () -> cfg.dockWidth, v -> cfg.dockWidth = v, v -> Math.round(v * 100) + "%");
         slider("Distância", .6f, 2.5f, .05f, () -> cfg.dockDist, v -> cfg.dockDist = v, v -> String.format(Locale.US, "%.2f m", v));
         slider("Escala", .6f, 1.6f, .05f, () -> cfg.dockScale, v -> cfg.dockScale = v, v -> Math.round(v * 100) + "%");

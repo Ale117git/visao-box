@@ -32,17 +32,17 @@ final class SpatialUi {
 
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
-            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11;
+            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}};
     static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.92f, .64f}, {.72f, .52f}, {.72f, .48f},
-            {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}};
+            {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}};
     static final int[] DOCK = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, MENU};
-    static final int[] MENU_APPS = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, CINEMA};
+    static final int[] MENU_APPS = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, NOTAS, CINEMA};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
             {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"}};
@@ -52,7 +52,8 @@ final class SpatialUi {
             {11, 12}, {9, 13}, {13, 14}, {14, 15}, {15, 16}, {13, 17}, {17, 18}, {18, 19}, {19, 20}, {0, 17}};
 
     static final int H_DOCK = 1, H_CLOCK = 2, H_HOMEBAR = 3, H_CHIP = 4, H_TBTN = 5, H_GRAB = 6, H_RESIZE = 7,
-            H_BTN = 8, H_AREA = 9, H_BODY = 10, H_EXITCINEMA = 11;
+            H_BTN = 8, H_AREA = 9, H_BODY = 10, H_EXITCINEMA = 11,
+            H_DOCKBODY = 12, H_KEY = 13, H_KBGRAB = 14, H_KBBODY = 15, H_KBCLOSE = 16;
     static final String[] TBTN = {"close", "min", "far", "near", "layer"};
     static final String[] TBTN_TIP = {"Fechar", "Minimizar", "Afastar", "Aproximar", "Atrás / na frente da pessoa"};
 
@@ -67,6 +68,7 @@ final class SpatialUi {
         final ArrayList<Bubble> bubbles = new ArrayList<>(); final ArrayList<Part> parts = new ArrayList<>();
         int score; float t; final long[] flash = new long[6]; long shot;
         int galSel = -1, page = 0;
+        final StringBuilder text = new StringBuilder();
     }
     static final class Btn {
         final String id; final boolean circle; float x, y, r; RectF rect;
@@ -84,7 +86,10 @@ final class SpatialUi {
         Hit(int t, String k) { type = t; key = k; }
     }
     static final class Hand { final float[] x = new float[21], y = new float[21]; boolean down, init; float cx, cy; long last; }
-    static final class Ptr { boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy; }
+    static final class Ptr {
+        boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy;
+        boolean dockDrag, dockMoved, dockHome, kbDrag; float sx, sy, ox, oy;
+    }
     static final class Latch {
         boolean down, rel;
         void press() { down = true; rel = false; }
@@ -298,6 +303,208 @@ final class SpatialUi {
     private float tbtnX(Parts P, int i) { return P.hw - .032f - i * .044f; }
     private float tbtnY(Parts P) { return -P.hh + .032f; }
 
+    /* ================= teclado virtual ================= */
+    static final int K_CHAR = 0, K_SHIFT = 1, K_DEL = 2, K_ENTER = 3, K_SPACE = 4, K_LAYER = 5, K_ACCENT = 6;
+    static final int T_WEB = 0, T_URL = 1, T_NOTES = 2;
+    static final float KB_STEP = .062f, KB_GAP = .006f;
+    static final RectF KB_PANEL = new RectF(-.34f, -.235f, .34f, .2f);
+
+    static final class Key {
+        final String label; final int kind; final RectF r;
+        Key(String l, int k, RectF r) { label = l; kind = k; this.r = r; }
+    }
+
+    boolean kbOpen; int kbTarget; Win kbWin; int kbLayer; boolean kbShift;
+    float kbX = 0f, kbY = .08f;
+    final StringBuilder urlBuf = new StringBuilder();
+    private final long[] kbFlash = new long[64];
+    private List<Key> kbKeys; private int kbKeysLayer = -1;
+    private boolean lastWebFocus;
+
+    private float kbScale() { return cfg.uiScaleEff() * (f / .5f) * .95f; }
+
+    private static String[] chars(String s) {
+        ArrayList<String> out = new ArrayList<>();
+        for (int i = 0; i < s.length(); ) { int cp = s.codePointAt(i); out.add(new String(Character.toChars(cp))); i += Character.charCount(cp); }
+        return out.toArray(new String[0]);
+    }
+
+    private static String[] row(String first, String mid, String last) {
+        ArrayList<String> out = new ArrayList<>();
+        out.add(first);
+        for (String c : chars(mid)) out.add(c);
+        out.add(last);
+        return out.toArray(new String[0]);
+    }
+
+    private static int kindOf(String t) {
+        switch (t) {
+            case "#SHIFT": return K_SHIFT;
+            case "#DEL": return K_DEL;
+            case "#ENTER": return K_ENTER;
+            case "#SPACE": return K_SPACE;
+            case "#LAYER": return K_LAYER;
+            case "#ACCENT": return K_ACCENT;
+            default: return K_CHAR;
+        }
+    }
+
+    private static float units(String t) {
+        switch (t) {
+            case "#SHIFT": case "#DEL": case "#ENTER": case "#LAYER": return 1.5f;
+            case "#ACCENT": return 1.2f;
+            case "#SPACE": return 3.8f;
+            default: return 1f;
+        }
+    }
+
+    private List<Key> kbKeys() {
+        if (kbKeys != null && kbKeysLayer == kbLayer) return kbKeys;
+        String[][] rows;
+        String[] last = {"#LAYER", "#ACCENT", ",", "#SPACE", ".", "#ENTER"};
+        if (kbLayer == 1) rows = new String[][]{chars("1234567890"), chars("@#$%&*-+()"), chars("!\"':;/?_=~"),
+                row("#SHIFT", "<>[]{}\\", "#DEL"), last};
+        else if (kbLayer == 2) rows = new String[][]{chars("áàâãéêíóôõ"), chars("úüçñÁÂÃÉÊÍ"), chars("ÓÔÕÚÜÇ¿¡«»"),
+                row("#SHIFT", "ªº°§·…•", "#DEL"), last};
+        else rows = new String[][]{chars("1234567890"), chars("qwertyuiop"), chars("asdfghjklç"),
+                row("#SHIFT", "zxcvbnm", "#DEL"), last};
+        ArrayList<Key> out = new ArrayList<>();
+        for (int r = 0; r < rows.length; r++) {
+            float total = 0;
+            for (String t : rows[r]) total += units(t);
+            float x = -(total * KB_STEP - KB_GAP) / 2, y = -.15f + r * KB_STEP;
+            for (String t : rows[r]) {
+                float w = units(t) * KB_STEP - KB_GAP;
+                out.add(new Key(t, kindOf(t), new RectF(x, y, x + w, y + KB_STEP - KB_GAP)));
+                x += units(t) * KB_STEP;
+            }
+        }
+        kbKeys = out;
+        kbKeysLayer = kbLayer;
+        return out;
+    }
+
+    void openKeyboard(int target, Win w) {
+        kbOpen = true; kbTarget = target; kbWin = w; kbLayer = 0; kbShift = false;
+        if (target == T_URL) urlBuf.setLength(0);
+        synth.open();
+    }
+
+    private StringBuilder kbBuffer() {
+        if (kbTarget == T_URL) return urlBuf;
+        if (kbTarget == T_NOTES && kbWin != null && wins.contains(kbWin)) return kbWin.text;
+        return null;
+    }
+
+    private void kbType(String s) {
+        if (kbTarget == T_WEB) { host.webInsert(s); return; }
+        StringBuilder b = kbBuffer();
+        if (b != null && b.length() < 5000) b.append(s);
+    }
+
+    private void kbKey(Key k, long now) {
+        switch (k.kind) {
+            case K_CHAR: {
+                String s = kbShift ? k.label.toUpperCase(new Locale("pt", "BR")) : k.label;
+                kbType(s);
+                kbShift = false;
+                break;
+            }
+            case K_SHIFT: kbShift = !kbShift; break;
+            case K_SPACE: kbType(" "); break;
+            case K_LAYER: kbLayer = kbLayer == 1 ? 0 : 1; break;
+            case K_ACCENT: kbLayer = kbLayer == 2 ? 0 : 2; break;
+            case K_DEL: {
+                if (kbTarget == T_WEB) { host.webKey(Host.KEY_DEL); break; }
+                StringBuilder b = kbBuffer();
+                if (b != null && b.length() > 0) b.delete(b.offsetByCodePoints(b.length(), -1), b.length());
+                break;
+            }
+            case K_ENTER: {
+                if (kbTarget == T_WEB) host.webKey(Host.KEY_ENTER);
+                else if (kbTarget == T_URL) {
+                    String u = urlBuf.toString().trim();
+                    if (!u.isEmpty()) host.webLoad(normalizeUrl(u));
+                    kbOpen = false;
+                    say("Abrindo…", now);
+                } else kbType("\n");
+                break;
+            }
+            default: break;
+        }
+    }
+
+    static String normalizeUrl(String u) {
+        if (u.matches("(?i)^https?://.*")) return u;
+        if (!u.contains(" ") && u.contains(".")) return "https://" + u;
+        try { return "https://www.google.com/search?q=" + java.net.URLEncoder.encode(u, "UTF-8"); }
+        catch (Exception e) { return "https://www.google.com/search?q=" + u.replace(' ', '+'); }
+    }
+
+    private void drawKeyboard(int sign, long now) {
+        Canvas c = g.c;
+        float ks = kbScale();
+        c.save();
+        c.translate(kbX + shift(sign, .9f), kbY);
+        c.scale(ks, ks);
+        g.glass(KB_PANEL, .032f, false, true);
+        // linha de prévia
+        RectF pr = new RectF(KB_PANEL.left + .02f, KB_PANEL.top + .014f, KB_PANEL.right - .06f, KB_PANEL.top + .052f);
+        g.fill.setColor(0x26FFFFFF);
+        c.drawRoundRect(pr, .016f, .016f, g.fill);
+        String pv; int pc = Color.WHITE;
+        if (kbTarget == T_URL) { pv = urlBuf.length() == 0 ? "Pesquisar ou digitar endereço" : urlBuf + "|"; if (urlBuf.length() == 0) pc = 0x99FFFFFF; }
+        else if (kbTarget == T_NOTES) {
+            StringBuilder b = kbBuffer();
+            String t = b == null ? "" : b.toString();
+            int nl = t.lastIndexOf('\n');
+            pv = "Notas: " + (nl >= 0 ? t.substring(nl + 1) : t) + "|";
+        } else { pv = "Digitando na página do navegador"; pc = 0x99FFFFFF; }
+        String shown = pv;
+        float maxW = pr.width() - .03f;
+        while (shown.length() > 1 && g.width(shown, .017f, g.regular) > maxW) shown = shown.substring(1);
+        g.txt(shown, pr.left + .015f, pr.centerY(), .017f, pc, Paint.Align.LEFT, g.regular);
+        // fechar
+        boolean ch = hov.contains("kbclose");
+        float cx = KB_PANEL.right - .03f, cy = KB_PANEL.top + .033f;
+        g.circle(cx, cy, .016f * (ch ? 1.18f : 1f), ch ? 0xF2FFFFFF : 0x33FFFFFF);
+        int ic = ch ? 0xFF15171E : 0xE6FFFFFF;
+        g.line(cx - .0065f, cy - .0065f, cx + .0065f, cy + .0065f, .0024f, ic);
+        g.line(cx + .0065f, cy - .0065f, cx - .0065f, cy + .0065f, .0024f, ic);
+        // teclas
+        List<Key> keys = kbKeys();
+        Locale br = new Locale("pt", "BR");
+        for (int i = 0; i < keys.size(); i++) {
+            Key k = keys.get(i);
+            boolean h = hov.contains("key:" + i);
+            float fl = Math.max(0, 1 - (now - kbFlash[i]) / 180f);
+            boolean special = k.kind != K_CHAR && k.kind != K_SPACE;
+            boolean active = (k.kind == K_SHIFT && kbShift) || (k.kind == K_ACCENT && kbLayer == 2) || (k.kind == K_LAYER && kbLayer == 1);
+            int col = fl > 0 ? 0xF2FFFFFF : h ? 0x99FFFFFF : active ? 0xCC7CC4FF : special ? 0x1AFFFFFF : 0x38FFFFFF;
+            c.drawRoundRect(k.r, .012f, .012f, paintOf(col));
+            String label;
+            switch (k.kind) {
+                case K_SHIFT: label = "↑"; break;
+                case K_DEL: label = "←"; break;
+                case K_ENTER: label = kbTarget == T_URL ? "Ir" : "Enter"; break;
+                case K_SPACE: label = "espaço"; break;
+                case K_LAYER: label = kbLayer == 1 ? "abc" : "?123"; break;
+                case K_ACCENT: label = kbLayer == 2 ? "abc" : "áé"; break;
+                default: label = kbShift ? k.label.toUpperCase(br) : k.label; break;
+            }
+            int tc = (fl > 0 || h) ? 0xFF15171E : Color.WHITE;
+            g.txt(label, k.r.centerX(), k.r.centerY(), special || k.kind == K_SPACE ? .018f : .024f, tc, Paint.Align.CENTER,
+                    special ? g.medium : g.regular);
+        }
+        // alça para mover
+        boolean gh = hov.contains("kbgrab");
+        g.fill.setColor(gh ? 0xF2FFFFFF : 0x80FFFFFF);
+        c.drawRoundRect(new RectF(-.075f, KB_PANEL.bottom + .028f, .075f, KB_PANEL.bottom + .046f), .009f, .009f, g.fill);
+        c.restore();
+    }
+
+    private Paint paintOf(int color) { g.fill.setColor(color); return g.fill; }
+
     /* ================= toque na cena ================= */
 
     private float dockScale() {
@@ -336,9 +543,23 @@ final class SpatialUi {
 
     Hit hitTest(float vx, float vy) {
         float hs = cfg.hitScale();
+        // ---- teclado ----
+        if (kbOpen) {
+            float ks = kbScale();
+            float kx = (vx - kbX) / ks, ky = (vy - kbY) / ks;
+            if (Math.hypot(kx - (KB_PANEL.right - .03f), ky - (KB_PANEL.top + .033f)) < .018f * 1.5f * hs) return new Hit(H_KBCLOSE, "kbclose");
+            if (kx > -.09f && kx < .09f && ky > KB_PANEL.bottom + .01f && ky < KB_PANEL.bottom + .06f) return new Hit(H_KBGRAB, "kbgrab");
+            List<Key> keys = kbKeys();
+            for (int i = 0; i < keys.size(); i++) {
+                RectF r = keys.get(i).r;
+                float e = .003f * hs;
+                if (kx > r.left - e && kx < r.right + e && ky > r.top - e && ky < r.bottom + e) { Hit h = new Hit(H_KEY, "key:" + i); h.index = i; return h; }
+            }
+            if (KB_PANEL.contains(kx, ky)) return new Hit(H_KBBODY, "kbbody");
+        }
         // ---- dock (preso à visão) ----
         float ds = dockScale();
-        float lx = vx / ds, ly = (vy - cfg.dockY) / ds;
+        float lx = (vx - cfg.dockX) / ds, ly = (vy - cfg.dockY) / ds;
         for (int i = 0; i < DOCK.length; i++) {
             if (Math.hypot(lx - dockIconX(i), ly) < .036f * hs) { Hit h = new Hit(H_DOCK, "dock:" + i); h.index = i; return h; }
         }
@@ -354,7 +575,7 @@ final class SpatialUi {
                 Hit h = new Hit(H_CHIP, "chip:" + w.id); h.win = w; return h;
             }
         }
-        if (dockPill().contains(lx, ly)) return new Hit(H_BODY, "dockbody");
+        if (dockPill().contains(lx, ly)) return new Hit(H_DOCKBODY, "dockbody");
 
         // ---- janelas (no espaço) ----
         float[] q = toSpatial(vx, vy);
@@ -388,7 +609,7 @@ final class SpatialUi {
 
     private static boolean clickable(Hit h) {
         return h != null && (h.type == H_DOCK || h.type == H_CLOCK || h.type == H_HOMEBAR || h.type == H_CHIP
-                || h.type == H_TBTN || h.type == H_BTN || h.type == H_EXITCINEMA);
+                || h.type == H_TBTN || h.type == H_BTN || h.type == H_EXITCINEMA || h.type == H_KEY || h.type == H_KBCLOSE);
     }
 
     private float[] local(Win w, float vx, float vy) {
@@ -400,13 +621,17 @@ final class SpatialUi {
         switch (h.type) {
             case H_DOCK: synth.click(); openApp(DOCK[h.index], now); break;
             case H_CLOCK: synth.click(); openApp(RELOGIO, now); break;
-            case H_HOMEBAR: {
-                synth.click();
-                boolean any = false;
-                for (Win w : wins) if (w.visible) any = true;
-                allHidden = any;
-                if (!any) for (Win w : wins) w.minimized = false;
-                say(any ? "Janelas ocultas · toque de novo para mostrar" : "Janelas de volta", now);
+            case H_HOMEBAR: case H_DOCKBODY:
+                p.dockDrag = true; p.dockHome = h.type == H_HOMEBAR; p.dockMoved = false;
+                p.sx = p.x; p.sy = p.y; p.ox = cfg.dockX; p.oy = cfg.dockY;
+                break;
+            case H_KBGRAB: case H_KBBODY:
+                p.kbDrag = true; p.sx = p.x; p.sy = p.y; p.ox = kbX; p.oy = kbY;
+                break;
+            case H_KBCLOSE: synth.click(); kbOpen = false; break;
+            case H_KEY: {
+                List<Key> keys = kbKeys();
+                if (h.index < keys.size()) { synth.click(); kbFlash[h.index] = now; kbKey(keys.get(h.index), now); }
                 break;
             }
             case H_CHIP: synth.click(); h.win.minimized = false; allHidden = false; toFront(h.win); break;
@@ -437,6 +662,15 @@ final class SpatialUi {
         }
     }
 
+    private void toggleWindows(long now) {
+        synth.click();
+        boolean any = false;
+        for (Win w : wins) if (w.visible) any = true;
+        allHidden = any;
+        if (!any) for (Win w : wins) w.minimized = false;
+        say(any ? "Janelas ocultas · toque de novo para mostrar" : "Janelas de volta", now);
+    }
+
     private void pressTitle(Win w, String id, long now) {
         synth.click();
         switch (id) {
@@ -454,6 +688,17 @@ final class SpatialUi {
     }
 
     private void hold(Ptr p) {
+        if (p.dockDrag) {
+            float dx = p.x - p.sx, dy = p.y - p.sy;
+            if (!p.dockMoved && Math.hypot(dx, dy) > .012f) p.dockMoved = true;
+            if (p.dockMoved) { cfg.dockX = Gfx.clamp(p.ox + dx, -.45f, .45f); cfg.dockY = Gfx.clamp(p.oy + dy, -.42f, .46f); }
+            return;
+        }
+        if (p.kbDrag) {
+            kbX = Gfx.clamp(p.ox + (p.x - p.sx), -.5f, .5f);
+            kbY = Gfx.clamp(p.oy + (p.y - p.sy), -.4f, .45f);
+            return;
+        }
         if (p.drag != null) {
             Win w = p.drag;
             float[] q = toSpatial(p.x, p.y);
@@ -493,6 +738,11 @@ final class SpatialUi {
             host.webTouch(MotionEvent.ACTION_UP, (l[0] - a.left) / a.width(), (l[1] - a.top) / a.height());
         }
         if (p.resize != null && p.resize.app == NAV) host.webAspect(contentAspect(p.resize));
+        if (p.dockDrag) {
+            if (!p.dockMoved && p.dockHome) toggleWindows(now());
+            else if (p.dockMoved) { host.configChanged(); say("Dock movido", now()); }
+        }
+        p.dockDrag = false; p.dockMoved = false; p.dockHome = false; p.kbDrag = false;
         p.drag = null; p.resize = null; p.hit = null; p.down = false;
     }
 
@@ -554,7 +804,7 @@ final class SpatialUi {
                 if (down) { host.recenter(); }
                 return true;
             case KeyEvent.KEYCODE_BUTTON_B: case KeyEvent.KEYCODE_ESCAPE: {
-                if (down) { Win w = front(); if (w != null) closeWin(w); }
+                if (down) { if (kbOpen) kbOpen = false; else { Win w = front(); if (w != null) closeWin(w); } }
                 return true;
             }
             case KeyEvent.KEYCODE_DPAD_LEFT: if (down) { gazeX = Gfx.clamp(gazeX - .03f, -.45f, .45f); gazeForced = true; } return true;
@@ -598,9 +848,16 @@ final class SpatialUi {
             if (h != null) { hov.add(h.key); if (i == 3 && clickable(h)) gazeKey = h.key; }
             if (p.drag != null) hov.add("grab:" + p.drag.id);
             if (p.resize != null) hov.add("resize:" + p.resize.id);
+            if (p.dockDrag) hov.add("home");
+            if (p.kbDrag) hov.add("kbgrab");
         }
         if (gazeKey != null && !gazeKey.equals(lastGazeKey)) synth.hover();
         lastGazeKey = gazeKey;
+
+        boolean wf = webFocused() && host.webInputFocused();
+        if (wf && !lastWebFocus && !(kbOpen && kbTarget == T_WEB)) openKeyboard(T_WEB, front());
+        if (!wf && lastWebFocus && kbOpen && kbTarget == T_WEB) kbOpen = false;
+        lastWebFocus = wf;
 
         float rate = Math.min(1, dt * 12 * cfg.animSpeed);
         for (int i = 0; i < DOCK.length; i++) dockAnim[i] += ((hov.contains("dock:" + i) ? 1 : 0) - dockAnim[i]) * rate;
@@ -636,14 +893,14 @@ final class SpatialUi {
                 float y = C.top + .024f;
                 out.add(new Btn("back", C.left + .022f, y, .018f));
                 out.add(new Btn("reload", C.left + .066f, y, .018f));
-                float x = C.left + .1f;
-                for (int i = 0; i < 4; i++) {
-                    float wdt = .105f;
-                    out.add(new Btn("u" + i, new RectF(x, y - .019f, x + wdt, y + .019f)));
-                    x += wdt + .012f;
-                }
+                out.add(new Btn("addr", new RectF(C.left + .1f, y - .019f, C.right - .06f, y + .019f)));
+                out.add(new Btn("kb", C.right - .022f, y, .018f));
                 break;
             }
+            case NOTAS:
+                out.add(new Btn("nkb", new RectF(C.right - .25f, C.bottom - .045f, C.right - .125f, C.bottom - .008f)));
+                out.add(new Btn("nclr", new RectF(C.right - .115f, C.bottom - .045f, C.right, C.bottom - .008f)));
+                break;
             case GALERIA: {
                 List<Host.GalleryItem> items = host.galleryItems();
                 if (w.galSel >= 0) {
@@ -737,7 +994,12 @@ final class SpatialUi {
             case NAV:
                 if (id.equals("back")) host.webBack();
                 else if (id.equals("reload")) host.webReload();
-                else if (id.startsWith("u")) host.webLoad(SITES[navSite(id.charAt(1) - '0')][1]);
+                else if (id.equals("addr")) openKeyboard(T_URL, w);
+                else if (id.equals("kb")) { if (kbOpen && kbTarget == T_WEB) kbOpen = false; else openKeyboard(T_WEB, w); }
+                break;
+            case NOTAS:
+                if (id.equals("nkb")) { if (kbOpen && kbTarget == T_NOTES && kbWin == w) kbOpen = false; else openKeyboard(T_NOTES, w); }
+                else if (id.equals("nclr")) w.text.setLength(0);
                 break;
             case GALERIA: {
                 int n = host.galleryItems().size();
@@ -961,6 +1223,7 @@ final class SpatialUi {
             case DESENHO: drawPaint(w, P); break;
             case BOLHAS: drawBubbles(w, P); break;
             case MUSICA: drawMusic(w, P, now); break;
+            case NOTAS: drawNotes(w, P); break;
             default: break;
         }
 
@@ -986,18 +1249,36 @@ final class SpatialUi {
         for (Btn b : buttons(w, P)) {
             boolean h = hov.contains("btn:" + w.id + ":" + b.id);
             if (b.circle) {
-                g.circle(b.x, b.y, b.r, h ? 0xF2FFFFFF : 0x2EFFFFFF);
+                boolean on = b.id.equals("kb") && kbOpen && kbTarget == T_WEB;
+                g.circle(b.x, b.y, b.r, h ? 0xF2FFFFFF : (on ? 0xCC7CC4FF : 0x2EFFFFFF));
                 int ic = h ? 0xFF15171E : 0xFFFFFFFF;
                 if (b.id.equals("back")) {
                     g.line(b.x + .004f, b.y - .008f, b.x - .004f, b.y, .0028f, ic);
                     g.line(b.x - .004f, b.y, b.x + .004f, b.y + .008f, .0028f, ic);
+                } else if (b.id.equals("kb")) {
+                    g.stroke.setColor(ic); g.stroke.setStrokeWidth(.002f);
+                    g.c.drawRoundRect(new RectF(b.x - .01f, b.y - .0065f, b.x + .01f, b.y + .0065f), .002f, .002f, g.stroke);
+                    for (int i = 0; i < 4; i++) g.circle(b.x - .0055f + i * .0037f, b.y - .002f, .0009f, ic);
+                    g.line(b.x - .004f, b.y + .003f, b.x + .004f, b.y + .003f, .0016f, ic);
                 } else {
                     g.stroke.setColor(ic); g.stroke.setStrokeWidth(.0026f);
                     g.c.drawArc(new RectF(b.x - .008f, b.y - .008f, b.x + .008f, b.y + .008f), 40, 290, false, g.stroke);
                 }
             } else {
-                g.glass(b.rect, b.rect.height() / 2, h, false);
-                g.txt(SITES[navSite(b.id.charAt(1) - '0')][0], b.rect.centerX(), b.rect.centerY(), .016f, Color.WHITE, Paint.Align.CENTER, g.medium);
+                boolean editing = kbOpen && kbTarget == T_URL;
+                g.glass(b.rect, b.rect.height() / 2, h || editing, false);
+                float ix = b.rect.left + .02f, iy = b.rect.centerY();
+                g.ring(ix, iy - .002f, .006f, .002f, 0xCCFFFFFF);
+                g.line(ix + .004f, iy + .002f, ix + .008f, iy + .006f, .002f, 0xCCFFFFFF);
+                String txt;
+                int col = Color.WHITE;
+                if (editing) { txt = urlBuf.length() == 0 ? "Pesquisar ou digitar endereço" : urlBuf + "|"; if (urlBuf.length() == 0) col = 0x99FFFFFF; }
+                else {
+                    String u = host.webUrl();
+                    txt = (u == null || u.isEmpty()) ? "Pesquisar ou digitar endereço" : u.replaceFirst("^https?://", "").replaceFirst("^www\\.", "");
+                    if (u == null || u.isEmpty()) col = 0x99FFFFFF;
+                }
+                g.txt(g.fit(txt, .016f, b.rect.width() - .05f, g.regular), ix + .016f, iy, .016f, col, Paint.Align.LEFT, g.regular);
             }
         }
         g.fill.setColor(0xFFFFFFFF);
@@ -1177,6 +1458,51 @@ final class SpatialUi {
         g.txt(g.fit(host.cameraLabel(), .014f, .11f, g.regular), C.right - .05f, C.top + .02f, .014f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
+    private List<String> wrap(String text, float size, float maxW) {
+        ArrayList<String> out = new ArrayList<>();
+        for (String para : text.split("\n", -1)) {
+            StringBuilder line = new StringBuilder();
+            for (String word : para.split(" ", -1)) {
+                String cand = line.length() == 0 ? word : line + " " + word;
+                if (line.length() == 0 || g.width(cand, size, g.regular) <= maxW) { line.setLength(0); line.append(cand); }
+                else { out.add(line.toString()); line.setLength(0); line.append(word); }
+            }
+            out.add(line.toString());
+        }
+        return out;
+    }
+
+    private void drawNotes(Win w, Parts P) {
+        RectF C = P.content;
+        RectF ta = new RectF(C.left, C.top, C.right, C.bottom - .055f);
+        g.fill.setColor(0x1FFFFFFF);
+        g.c.drawRoundRect(ta, .016f, .016f, g.fill);
+        boolean typing = kbOpen && kbTarget == T_NOTES && kbWin == w;
+        String t = w.text.toString() + (typing ? "|" : "");
+        float size = .021f, lh = .032f;
+        if (w.text.length() == 0 && !typing)
+            g.txt("Toque em Teclado e comece a escrever", ta.centerX(), ta.centerY(), .019f, 0x80FFFFFF, Paint.Align.CENTER, g.regular);
+        else {
+            List<String> lines = wrap(t, size, ta.width() - .04f);
+            int max = Math.max(1, (int) ((ta.height() - .03f) / lh));
+            int start = Math.max(0, lines.size() - max);
+            g.c.save();
+            g.clipRound(ta, .016f);
+            for (int i = start; i < lines.size(); i++)
+                g.txt(lines.get(i), ta.left + .02f, ta.top + .03f + (i - start) * lh, size, Color.WHITE, Paint.Align.LEFT, g.regular);
+            g.c.restore();
+        }
+        g.txt(w.text.length() + " caracteres", C.left, C.bottom - .026f, .015f, 0x80FFFFFF, Paint.Align.LEFT, g.regular);
+        for (Btn b : buttons(w, P)) {
+            boolean h = hov.contains("btn:" + w.id + ":" + b.id);
+            boolean on = b.id.equals("nkb") && typing;
+            g.fill.setColor(h ? 0xF2FFFFFF : (on ? 0xCC7CC4FF : 0x2EFFFFFF));
+            g.c.drawRoundRect(b.rect, b.rect.height() / 2, b.rect.height() / 2, g.fill);
+            g.txt(b.id.equals("nkb") ? "Teclado" : "Limpar", b.rect.centerX(), b.rect.centerY(), .015f,
+                    h ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+        }
+    }
+
     private void drawClock(Win w, Parts P) {
         Date d = new Date();
         RectF B = P.body;
@@ -1344,6 +1670,10 @@ final class SpatialUi {
                 p.moveTo(-.12f, .32f); p.lineTo(-.12f, -.48f); p.lineTo(.5f, -.6f); p.lineTo(.5f, .2f);
                 c.drawPath(p, s);
                 break;
+            case NOTAS:
+                c.drawRoundRect(new RectF(-.5f, -.6f, .5f, .6f), .12f, .12f, s);
+                for (int i = 0; i < 3; i++) c.drawLine(-.28f, -.28f + i * .26f, .28f, -.28f + i * .26f, s);
+                break;
             case CINEMA:
                 c.drawRoundRect(new RectF(-.64f, -.42f, .64f, .42f), .1f, .1f, s);
                 p.moveTo(-.14f, -.2f); p.lineTo(.22f, 0); p.lineTo(-.14f, .2f); p.close();
@@ -1359,7 +1689,7 @@ final class SpatialUi {
         // ---- dock ----
         float ds = dockScale();
         c.save();
-        c.translate(shift(sign, cfg.dockDist), cfg.dockY);
+        c.translate(cfg.dockX + shift(sign, cfg.dockDist), cfg.dockY);
         c.scale(ds, ds);
         RectF pill = dockPill();
         c.drawRoundRect(new RectF(pill.left, pill.top + .012f, pill.right, pill.bottom + .012f), .06f, .06f, g.shadow);
@@ -1406,11 +1736,14 @@ final class SpatialUi {
         if (toast != null && now - toastT < 2200) {
             float ta = Math.min(1, (2200 - (now - toastT)) / 300f);
             float tw = g.width(toast, .018f, g.medium) + .05f;
-            RectF tr = new RectF(-tw / 2, cfg.dockY - .2f * ds - .03f, tw / 2, cfg.dockY - .2f * ds + .012f);
+            float ty = cfg.dockY > -.1f ? cfg.dockY - .2f * ds : cfg.dockY + .2f * ds;
+            RectF tr = new RectF(cfg.dockX - tw / 2, ty - .03f, cfg.dockX + tw / 2, ty + .012f);
             g.fill.setColor(Gfx.a(0xE6202230, ta));
             c.drawRoundRect(tr, .02f, .02f, g.fill);
-            g.txt(toast, 0, tr.centerY(), .018f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
+            g.txt(toast, tr.centerX(), tr.centerY(), .018f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
         }
+
+        if (kbOpen) drawKeyboard(sign, now);
 
         // ---- mãos e ponteiros (alinhados à câmera) ----
         for (int i = 0; i < 2; i++) {

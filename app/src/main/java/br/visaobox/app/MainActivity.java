@@ -74,6 +74,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private String webTitle = "";
     private long webDownTime = 0;
     private String pendingUrl;
+    private volatile boolean webInput = false;
+    private long lastFocusCheck = 0;
 
     // galeria
     private final List<GalleryItem> gallery = new CopyOnWriteArrayList<>();
@@ -240,6 +242,14 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                 Bitmap t = webFront;
                 webFront = webBack;
                 webBack = (t != null && t.getWidth() == w && t.getHeight() == h) ? t : null;
+                long now = SystemClock.uptimeMillis();
+                if (now - lastFocusCheck > 350) {
+                    lastFocusCheck = now;
+                    web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return false;var t=(e.tagName||'').toUpperCase();"
+                            + "if(t=='TEXTAREA'||e.isContentEditable)return true;if(t!='INPUT')return false;"
+                            + "var y=(e.type||'text').toLowerCase();return ['text','search','email','url','tel','password','number',''].indexOf(y)>=0;})()",
+                            v -> webInput = "true".equals(v));
+                }
             }
         } catch (Throwable ignored) { }
         main.postDelayed(this::captureWeb, 110);
@@ -252,6 +262,38 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     public void webLoad(String url) {
         if (web == null) { pendingUrl = url; webOpen(); }
         else web.loadUrl(url);
+    }
+
+    @Override public String webUrl() { return web == null ? "" : (web.getUrl() == null ? "" : web.getUrl()); }
+
+    @Override public boolean webInputFocused() { return web != null && webInput; }
+
+    @Override
+    public void webInsert(String text) {
+        if (web == null) return;
+        web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
+                + "if(!document.execCommand('insertText',false," + org.json.JSONObject.quote(text) + ")){"
+                + "if('value' in e){var s=e.selectionStart||e.value.length;e.value=e.value.slice(0,s)+" + org.json.JSONObject.quote(text)
+                + "+e.value.slice(e.selectionEnd||s);e.selectionStart=e.selectionEnd=s+" + text.length() + ";"
+                + "e.dispatchEvent(new Event('input',{bubbles:true}));}}})()", null);
+    }
+
+    @Override
+    public void webKey(int key) {
+        if (web == null) return;
+        if (key == KEY_DEL) {
+            web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
+                    + "if(!document.execCommand('delete',false)){if('value' in e){var s=e.selectionStart;var f=e.selectionEnd;"
+                    + "if(s===f&&s>0)s--;e.value=e.value.slice(0,s)+e.value.slice(f);e.selectionStart=e.selectionEnd=s;"
+                    + "e.dispatchEvent(new Event('input',{bubbles:true}));}}})()", null);
+        } else {
+            web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
+                    + "var o={key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true};"
+                    + "var ok=e.dispatchEvent(new KeyboardEvent('keydown',o));e.dispatchEvent(new KeyboardEvent('keypress',o));"
+                    + "e.dispatchEvent(new KeyboardEvent('keyup',o));"
+                    + "if(ok&&(e.tagName||'').toUpperCase()=='TEXTAREA'){document.execCommand('insertText',false,'\\n');return;}"
+                    + "if(ok&&e.form){if(e.form.requestSubmit)e.form.requestSubmit();else e.form.submit();}})()", null);
+        }
     }
 
     @Override public void webBack() { if (web != null && web.canGoBack()) web.goBack(); }

@@ -5,7 +5,8 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 ## O que tem
 
 - **Visão binocular**: uma imagem para cada olho, com paralaxe de verdade (elementos próximos e distantes têm profundidade diferente), correção de distorção da lente e centros dos olhos posicionados pela IPD em milímetros reais.
-- **Dock flutuante** na parte de baixo, com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu, além de um indicador de início.
+- **Dock flutuante** na parte de baixo, com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu. Para mover o dock, faça a pinça na barrinha embaixo dele (ou no fundo dele) e arraste. Um toque rápido na barrinha oculta ou mostra as janelas.
+- **Teclado virtual flutuante e móvel**, com letras, números, símbolos e acentos. Ele digita nas páginas (abre sozinho ao tocar num campo de texto), na barra de endereço ou pesquisa do Navegador e no app Notas.
 - **Janelas flutuantes** de vidro fosco, com barra de título e controles para fechar, minimizar, aproximar, afastar e pôr atrás ou na frente da pessoa. Dá para mover pela barrinha ou pelo título e redimensionar pelo canto. Várias janelas podem ficar abertas ao mesmo tempo.
 - **Três modos**:
   - HUD: as janelas ficam presas à visão.
