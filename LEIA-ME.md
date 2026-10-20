@@ -1,27 +1,21 @@
-# Visão Box — app Android
+# Visão Box — app Android nativo
 
-App Android que abre o Visão Box em tela cheia, com a câmera liberada
-(não precisa de site https). A interface fica em `app/src/main/assets/index.html`.
+Interface no estilo Vision Pro para usar o celular dentro de um VR box.
+A câmera mostra o ambiente e o app reconhece as suas mãos (MediaPipe),
+tudo dentro do app, sem internet e sem página web.
 
-## Jeito 1 — GitHub (sem instalar nada no computador)
+## Como usar
+- Junte polegar e indicador (pinça) em cima de um ícone para abrir.
+- Faça a pinça na barrinha embaixo de uma janela para arrastar; o "x" fecha.
+- O botão redondo embaixo abre e fecha o início.
+- A engrenagem no canto abre os ajustes: modo VR / tela única, separação dos olhos,
+  zoom, efeito 3D e troca de câmera.
+- Sem VR box, também dá para tocar na tela com o dedo.
 
-1. Crie um repositório novo no GitHub (pode ser privado).
-2. Envie todos os arquivos desta pasta para ele (botão **Add file → Upload files**).
-   A pasta `.github` também precisa ir.
-3. Abra a aba **Actions**. A tarefa **Gerar APK** roda sozinha (leva uns 3–5 minutos).
-4. Quando ficar verde, clique nela e baixe **VisaoBox-apk** em *Artifacts*.
-5. Descompacte o .zip, passe o `app-debug.apk` para o celular e instale.
-   O Android vai pedir para permitir "instalar apps desconhecidos".
+## Gerar o APK
+O GitHub gera sozinho pela aba Actions (tarefa "Gerar APK").
+Durante a compilação, o modelo de reconhecimento de mãos é baixado e colocado dentro do app.
 
-## Jeito 2 — Android Studio
-
-1. Abra o Android Studio → **Open** → escolha esta pasta.
-2. Espere o Gradle sincronizar.
-3. Ligue o celular no cabo com a depuração USB ativa e clique em **Run ▶**,
-   ou use **Build → Build APK(s)**.
-
-## Observações
-
-- Na primeira vez o app precisa de internet para baixar o reconhecimento de mãos.
-- O app abre deitado (paisagem), para encaixar no VR box.
-- Para mudar a interface, edite `app/src/main/assets/index.html` e gere o APK de novo.
+Código principal:
+- app/src/main/java/br/visaobox/app/MainActivity.java (câmera, modelo, ajustes)
+- app/src/main/java/br/visaobox/app/VrView.java (interface, gestos, apps)
