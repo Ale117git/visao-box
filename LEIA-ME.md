@@ -44,8 +44,9 @@ A mira fica no centro da visão: você aponta com a cabeça e confirma no contro
 | ≡ Start | Ajustes |
 | ⧉ View / Volume − | recentralizar a visão |
 | Analógico esquerdo | ajustar a mira (L3 volta ao centro) |
-| Analógico direito | rolar a página / trocar foto |
-| Direcional | mover a mira |
+| Analógico direito | rolar a página (como um dedo arrastando) / trocar foto |
+| Setinhas ↑ ↓ | rolar a página aos pedaços (segurar continua) |
+| Setinhas ← → | mover a mira |
 
 O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo, para testar.
 

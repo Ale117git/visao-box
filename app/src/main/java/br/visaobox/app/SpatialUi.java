@@ -39,7 +39,7 @@ final class SpatialUi {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
             {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}};
-    static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.92f, .64f}, {.72f, .52f}, {.72f, .48f},
+    static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.96f, .74f}, {.72f, .52f}, {.72f, .48f},
             {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}};
     static final int[] DOCK = {NAV, YOUTUBE, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, MENU};
     static final int[] MENU_APPS = {NAV, YOUTUBE, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, NOTAS, CONTROLE, CINEMA};
@@ -942,8 +942,14 @@ final class SpatialUi {
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT: if (down) { gazeX = Gfx.clamp(gazeX - .03f, -.4f, .4f); gazeForced = true; } return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT: if (down) { gazeX = Gfx.clamp(gazeX + .03f, -.4f, .4f); gazeForced = true; } return true;
-            case KeyEvent.KEYCODE_DPAD_UP: if (down) { gazeY = Gfx.clamp(gazeY - .03f, -.4f, .4f); gazeForced = true; } return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN: if (down) { gazeY = Gfx.clamp(gazeY + .03f, -.4f, .4f); gazeForced = true; } return true;
+            case KeyEvent.KEYCODE_DPAD_UP: case KeyEvent.KEYCODE_DPAD_DOWN: {
+                if (!down) return true;
+                int dir = code == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1;
+                Win w = target();
+                if (w != null && isWeb(w.app)) host.webScroll(w.app, 0, dir * 260);       // rola a página
+                else { gazeY = Gfx.clamp(gazeY + dir * .03f, -.4f, .4f); gazeForced = true; }
+                return true;
+            }
             default: return false;
         }
     }
@@ -955,7 +961,7 @@ final class SpatialUi {
         padLX = lx; padLY = ly; padRX = rx; padRY = ry; padLT = lt; padRT = rt;
         // direcional que chega como eixo (comum no controle de Xbox)
         if (hx != hatX) { if (hx < -.5f) onKey(KeyEvent.KEYCODE_DPAD_LEFT, true, now); else if (hx > .5f) onKey(KeyEvent.KEYCODE_DPAD_RIGHT, true, now); hatX = hx; }
-        if (hy != hatY) { if (hy < -.5f) onKey(KeyEvent.KEYCODE_DPAD_UP, true, now); else if (hy > .5f) onKey(KeyEvent.KEYCODE_DPAD_DOWN, true, now); hatY = hy; }
+        if (hy != hatY) { if (hy < -.5f) onKey(KeyEvent.KEYCODE_DPAD_UP, true, now); else if (hy > .5f) onKey(KeyEvent.KEYCODE_DPAD_DOWN, true, now); hatY = hy; hatRepeat = now + 250; }
         boolean lt2 = lt > .5f, rt2 = rt > .5f;
         if (lt2 != ltWas) { setLt(lt2, now); ltWas = lt2; }
         if (rt2 != rtWas) { if (rt2) gLatch.press(); else gLatch.release(); rtWas = rt2; }
@@ -1016,9 +1022,16 @@ final class SpatialUi {
         }
     }
 
+    private long hatRepeat;
+
     /** Aplica os analógicos a cada quadro. */
     private void updatePad(long now, float dt) {
         if (!padActive(now)) return;
+        if (Math.abs(hatY) > .5f && now - hatRepeat > 140) {          // setinha segurada: continua rolando
+            hatRepeat = now;
+            Win w = target();
+            if (w != null && isWeb(w.app)) host.webScroll(w.app, 0, (hatY > 0 ? 1 : -1) * 220);
+        }
         final float dz = .18f;
         float lx = Math.abs(padLX) > dz ? padLX : 0, ly = Math.abs(padLY) > dz ? padLY : 0;
         if (lx != 0 || ly != 0) {
@@ -1029,9 +1042,9 @@ final class SpatialUi {
         if (rx != 0 || ry != 0) {
             Win w = target();
             if (w != null && isWeb(w.app)) {
-                scrollAccX += rx * Math.abs(rx) * 1600 * dt;
-                scrollAccY += ry * Math.abs(ry) * 1600 * dt;
-                if (now - lastScroll > 50) {
+                scrollAccX += rx * Math.abs(rx) * 1900 * dt;
+                scrollAccY += ry * Math.abs(ry) * 1900 * dt;
+                if (now - lastScroll > 33) {
                     host.webScroll(w.app, Math.round(scrollAccX), Math.round(scrollAccY));
                     scrollAccX = 0; scrollAccY = 0; lastScroll = now;
                 }
@@ -1337,8 +1350,10 @@ final class SpatialUi {
                 () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm - 1, 50, 76), () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm + 1, 50, 76)));
         r.add(new Row("Distorção da lente", Row.STEP, () -> String.valueOf(Math.round(cfg.k1 * 100)),
                 () -> cfg.k1 = Gfx.clamp(cfg.k1 - .02f, 0, .6f), () -> cfg.k1 = Gfx.clamp(cfg.k1 + .02f, 0, .6f)));
-        r.add(new Row("Tamanho da interface", Row.STEP, () -> Math.round(cfg.uiScale * 100) + "%",
-                () -> cfg.uiScale = Gfx.clamp(cfg.uiScale - .05f, .6f, 1.6f), () -> cfg.uiScale = Gfx.clamp(cfg.uiScale + .05f, .6f, 1.6f)));
+        r.add(new Row("Tamanho das janelas", Row.STEP, () -> Math.round(cfg.uiScale * 100) + "%",
+                () -> cfg.uiScale = Gfx.clamp(cfg.uiScale - .05f, .8f, 1.8f), () -> cfg.uiScale = Gfx.clamp(cfg.uiScale + .05f, .8f, 1.8f)));
+        r.add(new Row("Tamanho do texto", Row.STEP, () -> Math.round(cfg.textScale * 100) + "%",
+                () -> cfg.textScale = Gfx.clamp(cfg.textScale - .05f, 1f, 1.8f), () -> cfg.textScale = Gfx.clamp(cfg.textScale + .05f, 1f, 1.8f)));
         r.add(new Row("Brilho da câmera", Row.STEP, () -> String.valueOf(Math.round(cfg.camBrightness * 100)),
                 () -> cfg.camBrightness = Gfx.clamp(cfg.camBrightness - .05f, -.5f, .5f),
                 () -> cfg.camBrightness = Gfx.clamp(cfg.camBrightness + .05f, -.5f, .5f)));
@@ -2106,16 +2121,16 @@ final class SpatialUi {
         Canvas c = g.c;
         // ---- avisos ----
         float top = -.47f;
-        g.txt(status, 0, top, .016f, 0x99FFFFFF, Paint.Align.CENTER, g.medium);
-        if (error != null) g.txt(g.fit(error, .016f, eyeHalfW * 1.8f, g.medium), 0, top + .032f, .016f, 0xFFFF9A9A, Paint.Align.CENTER, g.medium);
+        g.txt(status, 0, top + .01f, .017f, 0x99FFFFFF, Paint.Align.CENTER, g.medium);
+        if (error != null) g.txt(g.fit(error, .017f, eyeHalfW * 1.8f, g.medium), 0, top + .045f, .017f, 0xFFFF9A9A, Paint.Align.CENTER, g.medium);
         if (toast != null && now - toastT < 2200) {
             float ta = Math.min(1, (2200 - (now - toastT)) / 300f);
-            float tw = g.width(toast, .018f, g.medium) + .05f;
+            float tw = g.width(toast, .019f, g.medium) + .06f;
             float ty = .2f;
-            RectF tr = new RectF(-tw / 2, ty - .03f, tw / 2, ty + .012f);
+            RectF tr = new RectF(-tw / 2, ty - .038f, tw / 2, ty + .016f);
             g.fill.setColor(Gfx.a(0xE6202230, ta));
             c.drawRoundRect(tr, .02f, .02f, g.fill);
-            g.txt(toast, tr.centerX(), tr.centerY(), .018f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
+            g.txt(toast, tr.centerX(), tr.centerY(), .019f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
         }
 
         // ---- mãos e ponteiros (alinhados à câmera) ----

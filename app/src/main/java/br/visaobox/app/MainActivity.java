@@ -173,7 +173,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         if (e.getAction() == KeyEvent.ACTION_DOWN || e.getAction() == KeyEvent.ACTION_UP) {
             if (SpatialUi.handlesKey(code)) {
-                if (e.getRepeatCount() == 0 || !down) {
+                boolean dpadV = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN;
+                if (e.getRepeatCount() == 0 || !down || dpadV) {
                     final long t = SystemClock.uptimeMillis();
                     vr.onGl(() -> vr.ui.onKey(code, down, t));
                 }

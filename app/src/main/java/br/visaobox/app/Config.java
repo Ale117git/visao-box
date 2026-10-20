@@ -25,7 +25,8 @@ final class Config {
 
     // ---- Conforto ----
     float brightness = 0f, contrast = 1f, saturation = 1f;
-    float uiScale = 1f;
+    float uiScale = 1.15f;          // tamanho das janelas, dock e teclado
+    float textScale = 1.25f;        // tamanho dos textos dentro deles
     float minDist = 0.8f;           // distância mínima das janelas (m)
     float animSpeed = 1f;
     float headSens = 1f;
@@ -53,7 +54,7 @@ final class Config {
     void copyFrom(Config o) {
         stereo = o.stereo; ipdMm = o.ipdMm; eyeScale = o.eyeScale; fovDeg = o.fovDeg; distortion = o.distortion;
         k1 = o.k1; k2 = o.k2; alignXmm = o.alignXmm; alignYmm = o.alignYmm; vignette = o.vignette; resScale = o.resScale; webGpu = o.webGpu;
-        stereo3d = o.stereo3d; brightness = o.brightness; contrast = o.contrast; saturation = o.saturation; uiScale = o.uiScale;
+        stereo3d = o.stereo3d; brightness = o.brightness; contrast = o.contrast; saturation = o.saturation; uiScale = o.uiScale; textScale = o.textScale;
         minDist = o.minDist; animSpeed = o.animSpeed; headSens = o.headSens; headSmooth = o.headSmooth;
         background = o.background; camBrightness = o.camBrightness; camContrast = o.camContrast; camOpacity = o.camOpacity;
         camZoom = o.camZoom; placement = o.placement; headTracking = o.headTracking; handInput = o.handInput;
@@ -78,7 +79,8 @@ final class Config {
         brightness = p.getFloat(k + "bri", brightness);
         contrast = p.getFloat(k + "con", contrast);
         saturation = p.getFloat(k + "sat", saturation);
-        uiScale = p.getFloat(k + "ui", uiScale);
+        uiScale = p.getFloat(k + "ui2", uiScale);
+        textScale = p.getFloat(k + "txt", textScale);
         minDist = p.getFloat(k + "minD", minDist);
         animSpeed = p.getFloat(k + "anim", animSpeed);
         headSens = p.getFloat(k + "hs", headSens);
@@ -112,7 +114,7 @@ final class Config {
                 .putFloat(k + "fov", fovDeg).putBoolean(k + "dist", distortion).putFloat(k + "k1", k1).putFloat(k + "k2", k2)
                 .putFloat(k + "ax", alignXmm).putFloat(k + "ay", alignYmm).putFloat(k + "vig", vignette)
                 .putFloat(k + "res2", resScale).putBoolean(k + "webgpu", webGpu).putFloat(k + "s3d", stereo3d).putFloat(k + "bri", brightness)
-                .putFloat(k + "con", contrast).putFloat(k + "sat", saturation).putFloat(k + "ui", uiScale)
+                .putFloat(k + "con", contrast).putFloat(k + "sat", saturation).putFloat(k + "ui2", uiScale).putFloat(k + "txt", textScale)
                 .putFloat(k + "minD", minDist).putFloat(k + "anim", animSpeed).putFloat(k + "hs", headSens)
                 .putFloat(k + "hsm", headSmooth).putInt(k + "bg", background).putFloat(k + "cbri", camBrightness)
                 .putFloat(k + "ccon", camContrast).putFloat(k + "cop", camOpacity).putFloat(k + "czoom", camZoom)

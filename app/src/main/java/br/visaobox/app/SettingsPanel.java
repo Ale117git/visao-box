@@ -98,7 +98,8 @@ final class SettingsPanel extends ScrollView {
         slider("Brilho", -.4f, .4f, .02f, () -> cfg.brightness, v -> cfg.brightness = v, v -> Math.round(v * 100) + "");
         slider("Contraste", .5f, 1.5f, .02f, () -> cfg.contrast, v -> cfg.contrast = v, v -> Math.round(v * 100) + "%");
         slider("Intensidade das cores", 0, 2, .05f, () -> cfg.saturation, v -> cfg.saturation = v, v -> Math.round(v * 100) + "%");
-        slider("Tamanho da interface", .6f, 1.6f, .05f, () -> cfg.uiScale, v -> cfg.uiScale = v, v -> Math.round(v * 100) + "%");
+        slider("Tamanho das janelas", .8f, 1.8f, .05f, () -> cfg.uiScale, v -> cfg.uiScale = v, v -> Math.round(v * 100) + "%");
+        slider("Tamanho do texto", 1f, 1.8f, .05f, () -> cfg.textScale, v -> cfg.textScale = v, v -> Math.round(v * 100) + "%");
         slider("Distância mínima das janelas", .5f, 2f, .05f, () -> cfg.minDist, v -> cfg.minDist = v, v -> String.format(Locale.US, "%.2f m", v));
         slider("Velocidade das animações", .3f, 2f, .05f, () -> cfg.animSpeed, v -> cfg.animSpeed = v, v -> Math.round(v * 100) + "%");
         slider("Sensibilidade da cabeça", .5f, 2f, .05f, () -> cfg.headSens, v -> cfg.headSens = v, v -> Math.round(v * 100) + "%");

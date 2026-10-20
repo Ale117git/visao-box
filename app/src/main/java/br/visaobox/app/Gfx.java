@@ -14,6 +14,10 @@ import android.graphics.Typeface;
 /** Ajudantes de desenho. As coordenadas são da cena: a altura do olho vale 1. */
 final class Gfx {
     Canvas c;
+    float textScale = 1f;
+
+    /** Rótulos e textos pequenos crescem com o ajuste; títulos grandes (como o relógio) ficam iguais. */
+    private float ts(float size) { return size < .04f ? Math.min(size * textScale, .05f) : size; }
     final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint grad = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -64,7 +68,7 @@ final class Gfx {
         if (s == null) return;
         c.save();
         c.translate(x, y);
-        float k = size / 100f;
+        float k = ts(size) / 100f;
         c.scale(k, k);
         text.setTypeface(tf);
         text.setTextSize(100);
@@ -78,7 +82,7 @@ final class Gfx {
     float width(String s, float size, Typeface tf) {
         text.setTypeface(tf);
         text.setTextSize(100);
-        return text.measureText(s) * size / 100f;
+        return text.measureText(s) * ts(size) / 100f;
     }
 
     String fit(String s, float size, float maxW, Typeface tf) {

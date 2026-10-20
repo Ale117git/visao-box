@@ -310,6 +310,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             computeGeometry();
             updateHead(dt);
             mapCamera(now);
+            g.textScale = cfg.textScale;
             ui.frame = frame;
             ui.camLabel = camLabel;
             ui.updateHands(rawHands, rawStamp, camX0, camDW, camY0, camDH, now);

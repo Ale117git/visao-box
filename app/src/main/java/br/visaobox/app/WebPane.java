@@ -31,7 +31,7 @@ import android.widget.FrameLayout;
  */
 final class WebPane {
 
-    static final int WIDTH = 1280;
+    static final int WIDTH = 960;     // menor largura = letras maiores dentro da janela
 
     final int id;
     private final Activity act;
@@ -201,8 +201,61 @@ final class WebPane {
         ev.recycle();
     }
 
+    // rolagem: um "dedo virtual" arrasta a página (funciona em qualquer site, inclusive no YouTube)
+    private boolean dragging;
+    private float dragX, dragY;
+    private long dragDown, lastDragMove;
+    private final Runnable endDrag = new Runnable() {
+        @Override public void run() {
+            if (!dragging) return;
+            long now = SystemClock.uptimeMillis();
+            if (now - lastDragMove < 150) { main.postDelayed(this, 60); return; }
+            finishDrag(now);
+        }
+    };
+
+    private void send(int action, float x, float y, long down, long time) {
+        MotionEvent ev = MotionEvent.obtain(down, time, action, x, y, 0);
+        web.dispatchTouchEvent(ev);
+        ev.recycle();
+    }
+
+    /** Solta o dedo parado (sem "arremesso"), para a página não sair rolando sozinha. */
+    private void finishDrag(long now) {
+        send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, now + 100);
+        send(MotionEvent.ACTION_UP, dragX, dragY, dragDown, now + 200);
+        dragging = false;
+    }
+
     void scroll(int dx, int dy) {
-        if (web != null) web.evaluateJavascript("window.scrollBy(" + dx + "," + dy + ")", null);
+        if (web == null || web.getWidth() == 0) return;
+        long now = SystemClock.uptimeMillis();
+        float w = web.getWidth(), hh = web.getHeight();
+        if (!dragging) {
+            dragX = w / 2; dragY = hh / 2;
+            dragDown = now;
+            send(MotionEvent.ACTION_DOWN, dragX, dragY, dragDown, now);
+            dragging = true;
+        }
+        // o dedo anda ao contrário da rolagem
+        float nx = dragX - dx, ny = dragY - dy;
+        if (nx < w * .08f || nx > w * .92f || ny < hh * .08f || ny > hh * .92f) {
+            // chegou na borda: solta e começa de novo no meio
+            finishDrag(now);
+            dragX = w / 2; dragY = hh / 2;
+            dragDown = now + 210;
+            send(MotionEvent.ACTION_DOWN, dragX, dragY, dragDown, dragDown);
+            dragging = true;
+            nx = dragX - dx; ny = dragY - dy;
+            dragX = nx; dragY = ny;
+            send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, dragDown + 16);
+        } else {
+            dragX = nx; dragY = ny;
+            send(MotionEvent.ACTION_MOVE, dragX, dragY, dragDown, now);
+        }
+        lastDragMove = now;
+        main.removeCallbacks(endDrag);
+        main.postDelayed(endDrag, 160);
     }
 
     void back() { if (web != null && web.canGoBack()) web.goBack(); }
