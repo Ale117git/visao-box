@@ -89,8 +89,10 @@ final class SettingsPanel extends ScrollView {
         slider("Alinhamento vertical", -10, 10, .5f, () -> cfg.alignYmm, v -> cfg.alignYmm = v, v -> String.format(Locale.US, "%+.1f mm", v));
         slider("Escurecer as bordas", 0, 1, .05f, () -> cfg.vignette, v -> cfg.vignette = v, v -> Math.round(v * 100) + "%");
         slider("Intensidade do 3D", 0, 2, .05f, () -> cfg.stereo3d, v -> cfg.stereo3d = v, v -> Math.round(v * 100) + "%");
-        slider("Nitidez (resolução)", .4f, 1, .05f, () -> cfg.resScale, v -> cfg.resScale = v, v -> Math.round(v * 100) + "%");
-        note("Valores maiores de nitidez deixam a imagem mais definida, mas podem reduzir os quadros por segundo.");
+        slider("Nitidez (resolução)", .5f, 1.5f, .05f, () -> cfg.resScale, v -> cfg.resScale = v, v -> Math.round(v * 100) + "%");
+        note("100% já compensa o zoom da lente. Acima disso fica ainda mais definido; abaixo, mais leve.");
+        toggle("Navegador e YouTube pela placa de vídeo (mostra vídeos)", () -> cfg.webGpu, v -> cfg.webGpu = v);
+        note("Se alguma página aparecer em branco, desligue para usar o modo compatível (vídeos podem ficar pretos nele).");
 
         section("Conforto");
         slider("Brilho", -.4f, .4f, .02f, () -> cfg.brightness, v -> cfg.brightness = v, v -> Math.round(v * 100) + "");

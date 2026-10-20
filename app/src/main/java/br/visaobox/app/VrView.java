@@ -60,9 +60,9 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public volatile String camLabel = "";
     public volatile boolean calibration = false;
     public volatile boolean mirror = false;
-    public volatile boolean navVisible;
+    public volatile int webMask;
     public volatile int openWindows;
-    public volatile boolean webFocusedNow;
+    public volatile int webFocusId = -1;
 
 
     /* ---------- geometria (pixels da tela) ---------- */
@@ -315,9 +315,9 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             ui.updateHands(rawHands, rawStamp, camX0, camDW, camY0, camDH, now);
             ui.update(now, dt);
             ui.status = statusLine(now);
-            navVisible = ui.navVisible();
+            webMask = ui.webVisibleMask();
             openWindows = ui.visibleCount();
-            webFocusedNow = ui.webFocused();
+            webFocusId = ui.webFocusId();
 
             boolean camBg = cfg.background == Config.BG_CAMERA && !calibration;
             boolean segOn = camBg && cfg.segMode != Config.SEG_OFF && segReady && maskData != null;
@@ -363,7 +363,9 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             eyeCX[0] = W / 2f; eyeCY[0] = H / 2f;
         }
         distNow = distorted(); k1Now = cfg.k1; k2Now = cfg.k2;
-        float rs = Math.min(cfg.resScale, 1000f / Math.max(1, eyeH));     // limita o tamanho da camada
+        // a lente amplia o centro: desenha com sobra de resolução para compensar o zoom (fica nítido)
+        float mag = distNow ? 1 + cfg.k1 + cfg.k2 : 1;
+        float rs = Math.min(cfg.resScale * mag, 1800f / Math.max(1, eyeH));
         int bw = Math.max(64, Math.round(eyeW * rs)), bh = Math.max(64, Math.round(eyeH * rs));
         if (front == null || front.w != bw || front.h != bh) {
             if (front != null) front.release();

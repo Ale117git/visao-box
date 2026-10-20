@@ -55,8 +55,6 @@ import java.util.concurrent.Executors;
 public class MainActivity extends ComponentActivity implements Host, SettingsPanel.Actions {
 
     private static final int REQ_CAMERA = 7, REQ_GALLERY = 8;
-    private static final int WEB_W = 1024;
-    private static final float WEB_SCALE = .75f;
 
     private SharedPreferences prefs;
     private final Config cfg = new Config();
@@ -68,16 +66,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
 
-    // navegador
-    private WebView web;
-    private int webH = 800;
-    private volatile Bitmap webFront;
-    private Bitmap webBack;
-    private volatile String webTitle = "", webUrlCache = "";
-    private long webDownTime = 0;
-    private String pendingUrl;
-    private volatile boolean webInput = false;
-    private long lastFocusCheck = 0;
+    // navegadores (um por app: Navegador e YouTube)
+    private final android.util.SparseArray<WebPane> panes = new android.util.SparseArray<>();
+    private int tickCount = 0;
 
     // galeria
     private final List<GalleryItem> gallery = new CopyOnWriteArrayList<>();
@@ -124,7 +115,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
         refreshFiles();
         loadGallery();
-        main.postDelayed(this::captureWeb, 150);
+        android.view.Choreographer.getInstance().postFrameCallback(webTick);
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -169,7 +160,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     protected void onDestroy() {
         cam.stop();
         io.shutdown();
-        if (web != null) web.destroy();
+        for (int i = 0; i < panes.size(); i++) panes.valueAt(i).destroy();
         super.onDestroy();
     }
 
@@ -189,7 +180,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                 return true;
             }
         }
-        if (web != null && vr.webFocusedNow && code != KeyEvent.KEYCODE_BACK) return web.dispatchKeyEvent(e);
+        WebPane fp = vr.webFocusId >= 0 ? panes.get(vr.webFocusId) : null;
+        if (fp != null && fp.web != null && code != KeyEvent.KEYCODE_BACK) return fp.web.dispatchKeyEvent(e);
         return super.dispatchKeyEvent(e);
     }
 
@@ -226,142 +218,52 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (hasFocus) hideBars();
     }
 
-    /* ================= navegador ================= */
+    /* ================= navegadores ================= */
 
-    @Override
-    public void webOpen() { main.post(this::webOpenMain); }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private void webOpenMain() {
-        if (web != null) return;
-        web = new WebView(this);
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        web.setBackgroundColor(Color.WHITE);
-        web.setLayerType(View.LAYER_TYPE_SOFTWARE, null); // permite copiar a página para a janela VR
-        web.setWebViewClient(new WebViewClient());
-        web.setWebChromeClient(new WebChromeClient() {
-            @Override public void onReceivedTitle(WebView v, String title) { webTitle = title == null ? "" : title; }
-        });
-        // fica atrás da tela VR; a imagem dele é copiada para a janela do navegador
-        root.addView(web, 0, new FrameLayout.LayoutParams(WEB_W, webH));
-        web.loadUrl(pendingUrl != null ? pendingUrl : "https://www.google.com");
-        pendingUrl = null;
+    private WebPane pane(int id) {
+        WebPane p = panes.get(id);
+        if (p == null) {
+            String home = id == SpatialUi.YOUTUBE ? "https://m.youtube.com" : "https://www.google.com";
+            p = new WebPane(id, this, root, main, home);
+            panes.put(id, p);
+        }
+        return p;
     }
 
-    private void captureWeb() {
-        try {
-            if (web != null) webUrlCache = web.getUrl() == null ? "" : web.getUrl();
-            // só copia a página quando a janela do navegador está à vista
-            if (web != null && vr.navVisible && web.getWidth() > 0 && web.getHeight() > 0) {
-                int w = Math.round(web.getWidth() * WEB_SCALE), h = Math.round(web.getHeight() * WEB_SCALE);
-                if (webBack == null || webBack.getWidth() != w || webBack.getHeight() != h)
-                    webBack = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                Canvas c = new Canvas(webBack);
-                c.drawColor(Color.WHITE);
-                c.scale(WEB_SCALE, WEB_SCALE);
-                web.draw(c);
-                Bitmap t = webFront;
-                webFront = webBack;
-                webBack = (t != null && t.getWidth() == w && t.getHeight() == h) ? t : null;
+    /** A cada quadro: copia as páginas visíveis para as janelas (~30 por segundo). */
+    private final android.view.Choreographer.FrameCallback webTick = new android.view.Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long frameTimeNanos) {
+            if ((++tickCount & 1) == 0) {
                 long now = SystemClock.uptimeMillis();
-                if (now - lastFocusCheck > 350) {
-                    lastFocusCheck = now;
-                    web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return false;var t=(e.tagName||'').toUpperCase();"
-                            + "if(t=='TEXTAREA'||e.isContentEditable)return true;if(t!='INPUT')return false;"
-                            + "var y=(e.type||'text').toLowerCase();return ['text','search','email','url','tel','password','number',''].indexOf(y)>=0;})()",
-                            v -> webInput = "true".equals(v));
+                int mask = vr.webMask;
+                for (int i = 0; i < panes.size(); i++) {
+                    WebPane p = panes.valueAt(i);
+                    boolean visible = (mask & (p.id == SpatialUi.NAV ? 1 : 2)) != 0;
+                    try { p.tick(visible, cfg.webGpu, now); } catch (Throwable ignored) { }
                 }
             }
-        } catch (Throwable ignored) { }
-        main.postDelayed(this::captureWeb, 125);
-    }
-
-    @Override public Bitmap webBitmap() { return webFront; }
-    @Override public String webTitle() { return webTitle; }
-
-    @Override
-    public void webLoad(String url) {
-        main.post(() -> {
-            if (web == null) { pendingUrl = url; webOpenMain(); }
-            else web.loadUrl(url);
-        });
-    }
-
-    @Override public String webUrl() { return webUrlCache; }
-
-    @Override public boolean webInputFocused() { return web != null && webInput; }
-
-    @Override
-    public void webInsert(String text) { main.post(() -> webInsertMain(text)); }
-
-    private void webInsertMain(String text) {
-        if (web == null) return;
-        web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
-                + "if(!document.execCommand('insertText',false," + org.json.JSONObject.quote(text) + ")){"
-                + "if('value' in e){var s=e.selectionStart||e.value.length;e.value=e.value.slice(0,s)+" + org.json.JSONObject.quote(text)
-                + "+e.value.slice(e.selectionEnd||s);e.selectionStart=e.selectionEnd=s+" + text.length() + ";"
-                + "e.dispatchEvent(new Event('input',{bubbles:true}));}}})()", null);
-    }
-
-    @Override
-    public void webKey(int key) { main.post(() -> webKeyMain(key)); }
-
-    private void webKeyMain(int key) {
-        if (web == null) return;
-        if (key == KEY_DEL) {
-            web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
-                    + "if(!document.execCommand('delete',false)){if('value' in e){var s=e.selectionStart;var f=e.selectionEnd;"
-                    + "if(s===f&&s>0)s--;e.value=e.value.slice(0,s)+e.value.slice(f);e.selectionStart=e.selectionEnd=s;"
-                    + "e.dispatchEvent(new Event('input',{bubbles:true}));}}})()", null);
-        } else {
-            web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
-                    + "var o={key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true};"
-                    + "var ok=e.dispatchEvent(new KeyboardEvent('keydown',o));e.dispatchEvent(new KeyboardEvent('keypress',o));"
-                    + "e.dispatchEvent(new KeyboardEvent('keyup',o));"
-                    + "if(ok&&(e.tagName||'').toUpperCase()=='TEXTAREA'){document.execCommand('insertText',false,'\\n');return;}"
-                    + "if(ok&&e.form){if(e.form.requestSubmit)e.form.requestSubmit();else e.form.submit();}})()", null);
+            android.view.Choreographer.getInstance().postFrameCallback(this);
         }
-    }
+    };
+
+    @Override public void webOpen(int id) { main.post(() -> pane(id).open()); }
+    @Override public Bitmap webBitmap(int id) { WebPane p = panes.get(id); return p == null ? null : p.front; }
+    @Override public String webTitle(int id) { WebPane p = panes.get(id); return p == null ? "" : p.title; }
+    @Override public String webUrl(int id) { WebPane p = panes.get(id); return p == null ? "" : p.url; }
+    @Override public boolean webInputFocused(int id) { WebPane p = panes.get(id); return p != null && p.input; }
+    @Override public void webLoad(int id, String url) { main.post(() -> pane(id).load(url)); }
+    @Override public void webBack(int id) { main.post(() -> pane(id).back()); }
+    @Override public void webReload(int id) { main.post(() -> pane(id).reload()); }
+    @Override public void webTouch(int id, int action, float fx, float fy) { main.post(() -> pane(id).touch(action, fx, fy)); }
+    @Override public void webAspect(int id, float aspect) { main.post(() -> pane(id).setAspect(aspect)); }
+    @Override public void webInsert(int id, String text) { main.post(() -> pane(id).insert(text)); }
+    @Override public void webKey(int id, int key) { main.post(() -> pane(id).key(key)); }
 
     @Override
-    public void webScroll(int dx, int dy) {
+    public void webScroll(int id, int dx, int dy) {
         if (dx == 0 && dy == 0) return;
-        main.post(() -> { if (web != null) web.evaluateJavascript("window.scrollBy(" + dx + "," + dy + ")", null); });
-    }
-
-    @Override public void webBack() { main.post(() -> { if (web != null && web.canGoBack()) web.goBack(); }); }
-    @Override public void webReload() { main.post(() -> { if (web != null) web.reload(); }); }
-
-    @Override
-    public void webTouch(int action, float fx, float fy) { main.post(() -> webTouchMain(action, fx, fy)); }
-
-    private void webTouchMain(int action, float fx, float fy) {
-        if (web == null) return;
-        long now = SystemClock.uptimeMillis();
-        if (action == MotionEvent.ACTION_DOWN) webDownTime = now;
-        float x = Gfx.clamp(fx, 0, 1) * web.getWidth(), y = Gfx.clamp(fy, 0, 1) * web.getHeight();
-        MotionEvent ev = MotionEvent.obtain(webDownTime, now, action, x, y, 0);
-        web.dispatchTouchEvent(ev);
-        ev.recycle();
-    }
-
-    @Override
-    public void webAspect(float aspect) { main.post(() -> webAspectMain(aspect)); }
-
-    private void webAspectMain(float aspect) {
-        int h = Math.round(WEB_W / Gfx.clamp(aspect, .5f, 3f));
-        if (Math.abs(h - webH) < 16) return;
-        webH = h;
-        if (web != null) {
-            ViewGroup.LayoutParams lp = web.getLayoutParams();
-            lp.width = WEB_W; lp.height = webH;
-            web.setLayoutParams(lp);
-        }
+        main.post(() -> pane(id).scroll(dx, dy));
     }
 
     /* ================= galeria e arquivos ================= */

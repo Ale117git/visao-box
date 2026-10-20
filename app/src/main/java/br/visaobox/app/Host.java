@@ -7,20 +7,20 @@ import java.util.List;
 
 /** O que a interface pede ao aplicativo (navegador, galeria, arquivos, câmera, ajustes). */
 interface Host {
-    // navegador
-    void webOpen();
-    Bitmap webBitmap();
-    String webTitle();
-    void webLoad(String url);
-    void webBack();
-    void webReload();
-    void webTouch(int action, float fx, float fy);
-    void webAspect(float aspect);
-    String webUrl();
-    void webInsert(String text);
-    void webKey(int key);          // KEY_DEL ou KEY_ENTER
-    boolean webInputFocused();
-    void webScroll(int dx, int dy);
+    // navegadores (id = app: Navegador ou YouTube)
+    void webOpen(int id);
+    Bitmap webBitmap(int id);
+    String webTitle(int id);
+    void webLoad(int id, String url);
+    void webBack(int id);
+    void webReload(int id);
+    void webTouch(int id, int action, float fx, float fy);
+    void webAspect(int id, float aspect);
+    String webUrl(int id);
+    void webInsert(int id, String text);
+    void webKey(int id, int key);          // KEY_DEL ou KEY_ENTER
+    boolean webInputFocused(int id);
+    void webScroll(int id, int dx, int dy);
     int KEY_DEL = 1, KEY_ENTER = 2;
 
     // galeria e arquivos

@@ -19,7 +19,8 @@ final class Config {
     float k1 = 0.22f, k2 = 0.10f;   // coeficientes de distorção (barril)
     float alignXmm = 0f, alignYmm = 0f; // correção de alinhamento
     float vignette = 0.45f;         // escurecimento das bordas
-    float resScale = 0.75f;          // resolução de renderização (desempenho x nitidez)
+    float resScale = 1.0f;          // nitidez (1 = resolução da tela, compensando a lente)
+    boolean webGpu = true;          // navegador copiado pela placa de vídeo (vídeos e mais nitidez)
     float stereo3d = 1f;            // intensidade da paralaxe
 
     // ---- Conforto ----
@@ -51,7 +52,7 @@ final class Config {
 
     void copyFrom(Config o) {
         stereo = o.stereo; ipdMm = o.ipdMm; eyeScale = o.eyeScale; fovDeg = o.fovDeg; distortion = o.distortion;
-        k1 = o.k1; k2 = o.k2; alignXmm = o.alignXmm; alignYmm = o.alignYmm; vignette = o.vignette; resScale = o.resScale;
+        k1 = o.k1; k2 = o.k2; alignXmm = o.alignXmm; alignYmm = o.alignYmm; vignette = o.vignette; resScale = o.resScale; webGpu = o.webGpu;
         stereo3d = o.stereo3d; brightness = o.brightness; contrast = o.contrast; saturation = o.saturation; uiScale = o.uiScale;
         minDist = o.minDist; animSpeed = o.animSpeed; headSens = o.headSens; headSmooth = o.headSmooth;
         background = o.background; camBrightness = o.camBrightness; camContrast = o.camContrast; camOpacity = o.camOpacity;
@@ -71,7 +72,8 @@ final class Config {
         alignXmm = p.getFloat(k + "ax", alignXmm);
         alignYmm = p.getFloat(k + "ay", alignYmm);
         vignette = p.getFloat(k + "vig", vignette);
-        resScale = p.getFloat(k + "res", resScale);
+        resScale = p.getFloat(k + "res2", resScale);
+        webGpu = p.getBoolean(k + "webgpu", webGpu);
         stereo3d = p.getFloat(k + "s3d", stereo3d);
         brightness = p.getFloat(k + "bri", brightness);
         contrast = p.getFloat(k + "con", contrast);
@@ -109,7 +111,7 @@ final class Config {
                 .putBoolean(k + "stereo", stereo).putFloat(k + "ipd", ipdMm).putFloat(k + "eyeScale", eyeScale)
                 .putFloat(k + "fov", fovDeg).putBoolean(k + "dist", distortion).putFloat(k + "k1", k1).putFloat(k + "k2", k2)
                 .putFloat(k + "ax", alignXmm).putFloat(k + "ay", alignYmm).putFloat(k + "vig", vignette)
-                .putFloat(k + "res", resScale).putFloat(k + "s3d", stereo3d).putFloat(k + "bri", brightness)
+                .putFloat(k + "res2", resScale).putBoolean(k + "webgpu", webGpu).putFloat(k + "s3d", stereo3d).putFloat(k + "bri", brightness)
                 .putFloat(k + "con", contrast).putFloat(k + "sat", saturation).putFloat(k + "ui", uiScale)
                 .putFloat(k + "minD", minDist).putFloat(k + "anim", animSpeed).putFloat(k + "hs", headSens)
                 .putFloat(k + "hsm", headSmooth).putInt(k + "bg", background).putFloat(k + "cbri", camBrightness)
