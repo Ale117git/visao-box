@@ -372,7 +372,10 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             back = new Layer(bw, bh);
         }
         String key = W + ":" + H + ":" + n + ":" + eyeW + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + distNow;
-        if (!key.equals(meshKey)) { meshKey = key; buildMesh(); }
+        if (!key.equals(meshKey)) {
+            meshKey = key;
+            buildMesh();
+        }
         ui.eyeHalfW = eyeW / eyeH / 2f;
     }
 
@@ -681,7 +684,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         String track = !head.available ? "sem sensor de rotação" : (cfg.headTracking ? "cabeça ✓" : "cabeça desligada");
         int hc = 0;
         for (int i = 0; i < 2; i++) if (ui.handActive(i, now)) hc++;
-        String hands = !cfg.handInput ? "mãos desligadas" : (!handReady ? "carregando mãos…" : hc + (hc == 1 ? " mão" : " mãos"));
+        String hands = ui.padActive(now) ? "controle ✓" : !cfg.handInput ? "mira (mãos desligadas)" : (!handReady ? "carregando mãos…" : hc + (hc == 1 ? " mão" : " mãos"));
         return place + " · " + track + " · " + hands + " · " + fps + " fps";
     }
 

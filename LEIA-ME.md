@@ -28,14 +28,25 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
-## Controle Bluetooth
+## Controle de Xbox / Bluetooth (recomendado)
+
+A mira fica no centro da visão: você aponta com a cabeça e confirma no controle. É bem mais leve que o rastreamento das mãos, que vem **desligado** e pode ser ligado em Ajustes.
 
 | Botão | Ação |
 |---|---|
-| A / Enter / Volume + | toca no ponteiro central |
-| Setas | movem o ponteiro |
-| B / Esc | fecha a janela da frente |
-| Volume − | recentraliza a visão |
+| A / RT | confirmar na mira (segurar A na barra da janela = arrastar) |
+| B | voltar: cancela o arraste, fecha o teclado, sai da foto ou fecha a janela |
+| X | menu de apps |
+| Y | teclado (barra do navegador ou Notas) |
+| LB / RB | afastar / aproximar a janela da mira |
+| LT (segurar) | arrastar qualquer janela com a mira |
+| ≡ Start | Ajustes |
+| ⧉ View / Volume − | recentralizar a visão |
+| Analógico esquerdo | ajustar a mira (L3 volta ao centro) |
+| Analógico direito | rolar a página / trocar foto |
+| Direcional | mover a mira |
+
+O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo, para testar.
 
 ## Desempenho (motor OpenGL ES)
 

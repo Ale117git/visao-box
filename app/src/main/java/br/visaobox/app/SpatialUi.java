@@ -32,17 +32,17 @@ final class SpatialUi {
 
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
-            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12;
+            RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}};
     static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.92f, .64f}, {.72f, .52f}, {.72f, .48f},
-            {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}};
+            {.8f, .48f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}};
     static final int[] DOCK = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, MENU};
-    static final int[] MENU_APPS = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, NOTAS, CINEMA};
+    static final int[] MENU_APPS = {NAV, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO, BOLHAS, MUSICA, NOTAS, CONTROLE, CINEMA};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
             {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"}};
@@ -87,7 +87,7 @@ final class SpatialUi {
     }
     static final class Hand { final float[] x = new float[21], y = new float[21]; boolean down, init; float cx, cy; long last; }
     static final class Ptr {
-        boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy;
+        boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy; float wy0, wp0;
         boolean dockDrag, dockMoved, dockHome, kbDrag; float sx, sy, ox, oy;
     }
     static final class Latch {
@@ -123,6 +123,16 @@ final class SpatialUi {
 
     // toque / mouse
     private float tX, tY; private long tLast = -100000; private final Latch tLatch = new Latch();
+    // controle (Xbox / Bluetooth)
+    final HashSet<Integer> padDown = new HashSet<>();
+    float padLX, padLY, padRX, padRY, padLT, padRT;
+    long padSeen = -100000;
+    private boolean ltWas, rtWas;
+    private float scrollAccX, scrollAccY; private long lastScroll;
+    private float hatX, hatY;
+
+    boolean padActive(long now) { return now - padSeen < 120000; }
+
     // ponteiro central
     float gazeX = 0, gazeY = 0; private final Latch gLatch = new Latch(); private boolean gazeForced;
     private String dwellKey; private long dwellStart; private boolean dwellFired; private String lastGazeKey;
@@ -683,6 +693,7 @@ final class SpatialUi {
                 if (h.win == cinemaWin) break;
                 float[] q = toSpatial(p.x, p.y);
                 p.drag = h.win; p.dx = h.win.cx - q[0]; p.dy = h.win.cy - q[1];
+                p.wy0 = h.win.yaw; p.wp0 = h.win.pitch;
                 break;
             }
             case H_RESIZE: toFront(h.win); if (h.win != cinemaWin) p.resize = h.win; break;
@@ -850,32 +861,165 @@ final class SpatialUi {
             case KeyEvent.KEYCODE_BUTTON_1: case KeyEvent.KEYCODE_VOLUME_DOWN: case KeyEvent.KEYCODE_BUTTON_B:
             case KeyEvent.KEYCODE_ESCAPE: case KeyEvent.KEYCODE_DPAD_LEFT: case KeyEvent.KEYCODE_DPAD_RIGHT:
             case KeyEvent.KEYCODE_DPAD_UP: case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_BUTTON_X: case KeyEvent.KEYCODE_BUTTON_Y: case KeyEvent.KEYCODE_BUTTON_L1:
+            case KeyEvent.KEYCODE_BUTTON_L2: case KeyEvent.KEYCODE_BUTTON_START: case KeyEvent.KEYCODE_BUTTON_THUMBL:
+            case KeyEvent.KEYCODE_BUTTON_THUMBR:
                 return true;
             default: return false;
         }
     }
 
+    static boolean isPadKey(int code) { return KeyEvent.isGamepadButton(code); }
+
+    /**
+     * Controle:  A / RT = confirmar (segurar A arrasta pela barra)   B = voltar / cancelar
+     *            X = menu de apps   Y = teclado   LB / RB = afastar / aproximar a janela
+     *            LT (segurar) = arrastar qualquer janela com a mira   ≡ (Start) = Ajustes
+     *            ⧉ (View) = recentralizar   analógico esq. = ajustar a mira (L3 centraliza)
+     *            analógico dir. = rolar a página   direcional = mover a mira
+     */
     boolean onKey(int code, boolean down, long now) {
+        if (isPadKey(code)) {
+            padSeen = now;
+            gazeForced = true;
+            if (down) padDown.add(code); else padDown.remove(code);
+        }
         switch (code) {
             case KeyEvent.KEYCODE_ENTER: case KeyEvent.KEYCODE_DPAD_CENTER: case KeyEvent.KEYCODE_BUTTON_A:
-            case KeyEvent.KEYCODE_BUTTON_R1: case KeyEvent.KEYCODE_BUTTON_R2: case KeyEvent.KEYCODE_VOLUME_UP:
-            case KeyEvent.KEYCODE_NUMPAD_ENTER: case KeyEvent.KEYCODE_BUTTON_SELECT: case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_BUTTON_R2: case KeyEvent.KEYCODE_VOLUME_UP:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER: case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
             case KeyEvent.KEYCODE_BUTTON_1:
                 gazeForced = true;
                 if (down) gLatch.press(); else gLatch.release();
                 return true;
-            case KeyEvent.KEYCODE_VOLUME_DOWN:
-                if (down) { host.recenter(); }
+            case KeyEvent.KEYCODE_VOLUME_DOWN: case KeyEvent.KEYCODE_BUTTON_SELECT:
+                if (down) host.recenter();
                 return true;
-            case KeyEvent.KEYCODE_BUTTON_B: case KeyEvent.KEYCODE_ESCAPE: {
-                if (down) { if (kbOpen) kbOpen = false; else { Win w = front(); if (w != null) closeWin(w); } }
+            case KeyEvent.KEYCODE_BUTTON_B: case KeyEvent.KEYCODE_ESCAPE:
+                if (down) goBack(now);
                 return true;
-            }
-            case KeyEvent.KEYCODE_DPAD_LEFT: if (down) { gazeX = Gfx.clamp(gazeX - .03f, -.45f, .45f); gazeForced = true; } return true;
-            case KeyEvent.KEYCODE_DPAD_RIGHT: if (down) { gazeX = Gfx.clamp(gazeX + .03f, -.45f, .45f); gazeForced = true; } return true;
-            case KeyEvent.KEYCODE_DPAD_UP: if (down) { gazeY = Gfx.clamp(gazeY - .03f, -.45f, .45f); gazeForced = true; } return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN: if (down) { gazeY = Gfx.clamp(gazeY + .03f, -.45f, .45f); gazeForced = true; } return true;
+            case KeyEvent.KEYCODE_BUTTON_X:
+                if (down) { synth.click(); Win m = find(MENU); if (m != null && m.visible && front() == m) closeWin(m); else openApp(MENU, now); }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+                if (down) toggleKeyboard(now);
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_L1: case KeyEvent.KEYCODE_BUTTON_R1:
+                if (down) {
+                    Win w = target();
+                    if (w != null) pressTitle(w, code == KeyEvent.KEYCODE_BUTTON_L1 ? "far" : "near", now);
+                }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_L2:
+                setLt(down, now);
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_START:
+                if (down) { synth.click(); openApp(AJUSTES, now); }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_THUMBL:
+                if (down) { gazeX = 0; gazeY = 0; say("Mira no centro", now); }
+                return true;
+            case KeyEvent.KEYCODE_BUTTON_THUMBR:
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT: if (down) { gazeX = Gfx.clamp(gazeX - .03f, -.4f, .4f); gazeForced = true; } return true;
+            case KeyEvent.KEYCODE_DPAD_RIGHT: if (down) { gazeX = Gfx.clamp(gazeX + .03f, -.4f, .4f); gazeForced = true; } return true;
+            case KeyEvent.KEYCODE_DPAD_UP: if (down) { gazeY = Gfx.clamp(gazeY - .03f, -.4f, .4f); gazeForced = true; } return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN: if (down) { gazeY = Gfx.clamp(gazeY + .03f, -.4f, .4f); gazeForced = true; } return true;
             default: return false;
+        }
+    }
+
+    /** Analógicos e gatilhos do controle (chegam a cada movimento). */
+    void setAxes(float lx, float ly, float rx, float ry, float lt, float rt, float hx, float hy, long now) {
+        padSeen = now;
+        gazeForced = true;
+        padLX = lx; padLY = ly; padRX = rx; padRY = ry; padLT = lt; padRT = rt;
+        // direcional que chega como eixo (comum no controle de Xbox)
+        if (hx != hatX) { if (hx < -.5f) onKey(KeyEvent.KEYCODE_DPAD_LEFT, true, now); else if (hx > .5f) onKey(KeyEvent.KEYCODE_DPAD_RIGHT, true, now); hatX = hx; }
+        if (hy != hatY) { if (hy < -.5f) onKey(KeyEvent.KEYCODE_DPAD_UP, true, now); else if (hy > .5f) onKey(KeyEvent.KEYCODE_DPAD_DOWN, true, now); hatY = hy; }
+        boolean lt2 = lt > .5f, rt2 = rt > .5f;
+        if (lt2 != ltWas) { setLt(lt2, now); ltWas = lt2; }
+        if (rt2 != rtWas) { if (rt2) gLatch.press(); else gLatch.release(); rtWas = rt2; }
+    }
+
+    /** LT segurado: arrasta a janela que está na mira, segurando em qualquer ponto dela. */
+    private void setLt(boolean down, long now) {
+        Ptr p = ptrs[3];
+        if (down) {
+            if (p.down) return;
+            Hit h = hitTest(gazeX, gazeY);
+            if (h == null || h.win == null || h.win == cinemaWin) return;
+            Hit g2 = new Hit(H_GRAB, "grab:" + h.win.id);
+            g2.win = h.win;
+            p.exists = true; p.x = gazeX; p.y = gazeY; p.down = true; p.hit = g2;
+            press(p, g2, now);
+            ltHolding = true;
+        } else if (ltHolding) {
+            ltHolding = false;
+            release(p);
+        }
+    }
+    private boolean ltHolding;
+
+    /** Janela sob a mira (ou a da frente). */
+    private Win target() {
+        Hit h = hitTest(gazeX, gazeY);
+        if (h != null && h.win != null) return h.win;
+        return front();
+    }
+
+    /** B: cancela o arraste, fecha o teclado, sai da foto aberta ou fecha a janela. */
+    private void goBack(long now) {
+        synth.click();
+        Ptr p = ptrs[3];
+        if (p.down && p.drag != null) {
+            p.drag.yaw = p.wy0; p.drag.pitch = p.wp0;
+            p.drag = null; p.hit = null; ltHolding = false;
+            say("Cancelado", now);
+            return;
+        }
+        if (kbOpen) { kbOpen = false; return; }
+        Win w = target();
+        if (w == null) return;
+        if (w.app == GALERIA && w.galSel >= 0) { w.galSel = -1; return; }
+        closeWin(w);
+    }
+
+    private void toggleKeyboard(long now) {
+        if (kbOpen) { kbOpen = false; return; }
+        Win w = target();
+        if (w != null && w.app == NAV) openKeyboard(T_URL, w);
+        else if (w != null && w.app == NOTAS) openKeyboard(T_NOTES, w);
+        else {
+            Win n = openApp(NOTAS, now);
+            if (n != null) openKeyboard(T_NOTES, n);
+        }
+    }
+
+    /** Aplica os analógicos a cada quadro. */
+    private void updatePad(long now, float dt) {
+        if (!padActive(now)) return;
+        final float dz = .18f;
+        float lx = Math.abs(padLX) > dz ? padLX : 0, ly = Math.abs(padLY) > dz ? padLY : 0;
+        if (lx != 0 || ly != 0) {
+            gazeX = Gfx.clamp(gazeX + lx * Math.abs(lx) * .55f * dt, -.4f, .4f);
+            gazeY = Gfx.clamp(gazeY + ly * Math.abs(ly) * .55f * dt, -.4f, .4f);
+        }
+        float rx = Math.abs(padRX) > dz ? padRX : 0, ry = Math.abs(padRY) > dz ? padRY : 0;
+        if (rx != 0 || ry != 0) {
+            Win w = target();
+            if (w != null && w.app == NAV) {
+                scrollAccX += rx * Math.abs(rx) * 1600 * dt;
+                scrollAccY += ry * Math.abs(ry) * 1600 * dt;
+                if (now - lastScroll > 50) {
+                    host.webScroll(Math.round(scrollAccX), Math.round(scrollAccY));
+                    scrollAccX = 0; scrollAccY = 0; lastScroll = now;
+                }
+            } else if (w != null && (w.app == GALERIA || w.app == ARQUIVOS) && now - lastScroll > 350 && Math.abs(rx) > .6f) {
+                if (w.app == GALERIA && w.galSel >= 0) pressBtn(w, rx > 0 ? "gnext" : "gprev", now);
+                else pressBtn(w, rx > 0 ? "pnext" : "pprev", now);
+                lastScroll = now;
+            }
         }
     }
 
@@ -883,6 +1027,7 @@ final class SpatialUi {
 
     void update(long now, float dt) {
         layout();
+        updatePad(now, dt);
         // mãos
         for (int i = 0; i < 2; i++) {
             if (handActive(i, now)) feed(ptrs[i], hands[i].cx, hands[i].cy, hands[i].down, now);
@@ -1155,7 +1300,7 @@ final class SpatialUi {
                 null, () -> cfg.dwell = !cfg.dwell));
         r.add(new Row("Navegação simplificada", Row.TOGGLE, () -> cfg.simple ? "Ligada" : "Desligada",
                 null, () -> cfg.simple = !cfg.simple));
-        r.add(new Row("Mãos (pinça)", Row.TOGGLE, () -> cfg.handInput ? "Ligadas" : "Desligadas",
+        r.add(new Row("Rastrear as mãos", Row.TOGGLE, () -> cfg.handInput ? "Ligado" : "Desligado",
                 null, () -> cfg.handInput = !cfg.handInput));
         r.add(new Row("Distância dos olhos (IPD)", Row.STEP, () -> Math.round(cfg.ipdMm) + " mm",
                 () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm - 1, 50, 76), () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm + 1, 50, 76)));
@@ -1290,6 +1435,7 @@ final class SpatialUi {
             case BOLHAS: drawBubbles(w, P); break;
             case MUSICA: drawMusic(w, P, now); break;
             case NOTAS: drawNotes(w, P); break;
+            case CONTROLE: drawPad(w, P, now); break;
             default: break;
         }
 
@@ -1569,6 +1715,75 @@ final class SpatialUi {
         }
     }
 
+    static final String[][] PAD_HELP = {
+            {"A", "Confirmar (segurar na barra = arrastar)"}, {"B", "Voltar / cancelar / fechar"},
+            {"X", "Menu de apps"}, {"Y", "Teclado"}, {"LB / RB", "Afastar / aproximar janela"},
+            {"LT", "Segurar: arrastar janela na mira"}, {"RT", "Confirmar"}, {"≡ Start", "Ajustes"},
+            {"⧉ View", "Recentralizar a visão"}, {"Analógico esq.", "Ajustar a mira (L3 centraliza)"},
+            {"Analógico dir.", "Rolar a página / trocar foto"}, {"Direcional", "Mover a mira"}};
+
+    private boolean pd(int code) { return padDown.contains(code); }
+
+    /** Controle desenhado ao vivo: os botões acendem quando apertados. */
+    private void drawPad(Win w, Parts P, long now) {
+        RectF C = P.content;
+        boolean on = padActive(now);
+        float cx = C.left + C.width() * .27f, cy = C.top + C.height() * .46f;
+        float bw = C.width() * .46f, bh = C.height() * .56f;
+        // corpo
+        Path body = new Path();
+        body.addRoundRect(new RectF(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh * .2f), bh * .3f, bh * .3f, Path.Direction.CW);
+        body.addRoundRect(new RectF(cx - bw / 2, cy - bh * .2f, cx - bw * .12f, cy + bh / 2), bh * .26f, bh * .26f, Path.Direction.CW);
+        body.addRoundRect(new RectF(cx + bw * .12f, cy - bh * .2f, cx + bw / 2, cy + bh / 2), bh * .26f, bh * .26f, Path.Direction.CW);
+        g.fill.setColor(0x33FFFFFF);
+        g.c.drawPath(body, g.fill);
+        float u = bh * .09f;
+        // gatilhos e bumpers
+        int lit = 0xFF7CC4FF, dim = 0x40FFFFFF;
+        float lt = Math.max(padLT, pd(KeyEvent.KEYCODE_BUTTON_L2) ? 1 : 0), rt = Math.max(padRT, pd(KeyEvent.KEYCODE_BUTTON_R2) ? 1 : 0);
+        g.fill.setColor(lt > .5f ? lit : dim);
+        g.c.drawRoundRect(new RectF(cx - bw * .44f, cy - bh * .74f, cx - bw * .22f, cy - bh * .6f), u * .5f, u * .5f, g.fill);
+        g.fill.setColor(rt > .5f ? lit : dim);
+        g.c.drawRoundRect(new RectF(cx + bw * .22f, cy - bh * .74f, cx + bw * .44f, cy - bh * .6f), u * .5f, u * .5f, g.fill);
+        g.fill.setColor(pd(KeyEvent.KEYCODE_BUTTON_L1) ? lit : dim);
+        g.c.drawRoundRect(new RectF(cx - bw * .46f, cy - bh * .56f, cx - bw * .2f, cy - bh * .5f), u * .3f, u * .3f, g.fill);
+        g.fill.setColor(pd(KeyEvent.KEYCODE_BUTTON_R1) ? lit : dim);
+        g.c.drawRoundRect(new RectF(cx + bw * .2f, cy - bh * .56f, cx + bw * .46f, cy - bh * .5f), u * .3f, u * .3f, g.fill);
+        // analógicos (mexem de verdade)
+        float lsx = cx - bw * .3f, lsy = cy - bh * .14f, rsx = cx + bw * .13f, rsy = cy + bh * .12f;
+        g.ring(lsx, lsy, u * 1.25f, .002f, 0x66FFFFFF);
+        g.circle(lsx + padLX * u * .7f, lsy + padLY * u * .7f, u * .8f, pd(KeyEvent.KEYCODE_BUTTON_THUMBL) ? lit : 0xCCFFFFFF);
+        g.ring(rsx, rsy, u * 1.25f, .002f, 0x66FFFFFF);
+        g.circle(rsx + padRX * u * .7f, rsy + padRY * u * .7f, u * .8f, pd(KeyEvent.KEYCODE_BUTTON_THUMBR) ? lit : 0xCCFFFFFF);
+        // direcional
+        float dx = cx - bw * .13f, dy = cy + bh * .12f;
+        g.fill.setColor(dim);
+        g.c.drawRect(dx - u * .35f, dy - u, dx + u * .35f, dy + u, g.fill);
+        g.c.drawRect(dx - u, dy - u * .35f, dx + u, dy + u * .35f, g.fill);
+        // ABXY
+        float ax = cx + bw * .3f, ay = cy - bh * .14f, sp = u * 1.1f;
+        Object[][] face = {{KeyEvent.KEYCODE_BUTTON_A, "A", 0xFF3CC85A, 0f, sp}, {KeyEvent.KEYCODE_BUTTON_B, "B", 0xFFE5484D, sp, 0f},
+                {KeyEvent.KEYCODE_BUTTON_X, "X", 0xFF3E8BFF, -sp, 0f}, {KeyEvent.KEYCODE_BUTTON_Y, "Y", 0xFFF5C518, 0f, -sp}};
+        for (Object[] f : face) {
+            boolean d = pd((Integer) f[0]);
+            float fx = ax + (Float) f[3], fy = ay + (Float) f[4];
+            g.circle(fx, fy, u * (d ? .62f : .55f), d ? (Integer) f[2] : Gfx.a((Integer) f[2], .55f));
+            g.txt((String) f[1], fx, fy, u * .7f, Color.WHITE, Paint.Align.CENTER, g.medium);
+        }
+        // View / Start
+        g.circle(cx - u * .8f, cy - bh * .14f, u * .28f, pd(KeyEvent.KEYCODE_BUTTON_SELECT) ? lit : 0x99FFFFFF);
+        g.circle(cx + u * .8f, cy - bh * .14f, u * .28f, pd(KeyEvent.KEYCODE_BUTTON_START) ? lit : 0x99FFFFFF);
+        g.txt(on ? "Controle conectado" : "Conecte um controle Bluetooth e aperte um botão", cx, C.bottom - .02f, .016f,
+                on ? 0xFF9FE8B0 : 0xB3FFFFFF, Paint.Align.CENTER, g.medium);
+        // lista do que cada botão faz
+        float lx = C.left + C.width() * .55f, ly = C.top + .02f, lh = (C.height() - .03f) / PAD_HELP.length;
+        for (String[] h : PAD_HELP) {
+            g.txt(h[0], lx, ly + lh / 2, .016f, 0xFF9FD3FF, Paint.Align.LEFT, g.medium);
+            g.txt(g.fit(h[1], .016f, C.right - lx - .13f, g.regular), lx + .125f, ly + lh / 2, .016f, 0xE6FFFFFF, Paint.Align.LEFT, g.regular);
+            ly += lh;
+        }
+    }
+
     private void drawClock(Win w, Parts P) {
         Date d = new Date();
         RectF B = P.body;
@@ -1741,6 +1956,13 @@ final class SpatialUi {
                 p.moveTo(-.12f, .32f); p.lineTo(-.12f, -.48f); p.lineTo(.5f, -.6f); p.lineTo(.5f, .2f);
                 c.drawPath(p, s);
                 break;
+            case CONTROLE:
+                c.drawRoundRect(new RectF(-.66f, -.32f, .66f, .3f), .3f, .3f, s);
+                c.drawLine(-.4f, -.06f, -.16f, -.06f, s);
+                c.drawLine(-.28f, -.18f, -.28f, .06f, s);
+                c.drawCircle(.3f, -.14f, .07f, fl);
+                c.drawCircle(.3f, .04f, .07f, fl);
+                break;
             case NOTAS:
                 c.drawRoundRect(new RectF(-.5f, -.6f, .5f, .6f), .12f, .12f, s);
                 for (int i = 0; i < 3; i++) c.drawLine(-.28f, -.28f + i * .26f, .28f, -.28f + i * .26f, s);
@@ -1880,6 +2102,12 @@ final class SpatialUi {
             float gx = gp.x + shift(sign, 1.5f), gy = gp.y;
             boolean on = lastGazeKey != null;
             g.circle(gx, gy, .0045f, 0xF2FFFFFF);
+            if (padActive(now) && !on) {
+                g.line(gx - .022f, gy, gx - .013f, gy, .0022f, 0xB3FFFFFF);
+                g.line(gx + .013f, gy, gx + .022f, gy, .0022f, 0xB3FFFFFF);
+                g.line(gx, gy - .022f, gx, gy - .013f, .0022f, 0xB3FFFFFF);
+                g.line(gx, gy + .013f, gx, gy + .022f, .0022f, 0xB3FFFFFF);
+            }
             g.ring(gx, gy, on ? .016f : .011f, .0026f, gp.down ? 0xFF7CC4FF : (on ? 0xF2FFFFFF : 0x99FFFFFF));
             if (cfg.dwell && dwellKey != null && !dwellFired) {
                 float pr = Math.min(1, (now - dwellStart) / (float) cfg.dwellMs());

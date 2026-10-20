@@ -65,6 +65,7 @@ final class CameraVision {
     private volatile boolean handBusy, segBusy, handGpu;
     private long lastTs = 0, handSent = 0, segSent = 0;
     private int frameNo = 0, handErrors = 0;
+    private boolean handTried;
 
     private ProcessCameraProvider provider;
     private final List<CameraSelector> cams = new ArrayList<>();
@@ -89,7 +90,7 @@ final class CameraVision {
 
     void initModels() {
         exec.execute(() -> {
-            createHand(true);
+            if (cfg.handInput) createHand(true);
             try {
                 BaseOptions base = BaseOptions.builder().setModelAssetPath("selfie_segmenter.tflite").setDelegate(Delegate.CPU).build();
                 ImageSegmenter.ImageSegmenterOptions o = ImageSegmenter.ImageSegmenterOptions.builder()
@@ -127,6 +128,7 @@ final class CameraVision {
                         .setErrorListener(this::onHandError)
                         .build();
                 hand = HandLandmarker.createFromOptions(act, o);
+                handTried = true;
                 handGpu = attempt == 0;
                 handErrors = 0;
                 vr.handReady = true;
@@ -343,6 +345,7 @@ final class CameraVision {
             if (handBusy && ts - handSent > 1500) handBusy = false;
             if (segBusy && ts - segSent > 1500) segBusy = false;
 
+            if (cfg.handInput && hand == null && !handTried) { handTried = true; createHand(true); }
             HandLandmarker hl = hand;
             if (cfg.handInput && hl != null && !handBusy && ts - handSent >= 45) {   // ~20 por segundo bastam para a pinça
                 handBusy = true; handSent = ts;

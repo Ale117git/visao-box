@@ -37,7 +37,7 @@ final class Config {
     // ---- Modos de uso ----
     int placement = ESPACIAL;
     boolean headTracking = true;
-    boolean handInput = true;
+    boolean handInput = false;   // mãos desligadas por padrão: mira + controle é mais leve
     boolean gazePointer = true;
     boolean dwell = false;
     boolean simple = false;
@@ -88,7 +88,7 @@ final class Config {
         camZoom = p.getFloat(k + "czoom", camZoom);
         placement = p.getInt(k + "place", placement);
         headTracking = p.getBoolean(k + "track", headTracking);
-        handInput = p.getBoolean(k + "hand", handInput);
+        handInput = p.getBoolean(k + "hand2", handInput);
         gazePointer = p.getBoolean(k + "gaze", gazePointer);
         dwell = p.getBoolean(k + "dwell", dwell);
         simple = p.getBoolean(k + "simple", simple);
@@ -114,7 +114,7 @@ final class Config {
                 .putFloat(k + "minD", minDist).putFloat(k + "anim", animSpeed).putFloat(k + "hs", headSens)
                 .putFloat(k + "hsm", headSmooth).putInt(k + "bg", background).putFloat(k + "cbri", camBrightness)
                 .putFloat(k + "ccon", camContrast).putFloat(k + "cop", camOpacity).putFloat(k + "czoom", camZoom)
-                .putInt(k + "place", placement).putBoolean(k + "track", headTracking).putBoolean(k + "hand", handInput)
+                .putInt(k + "place", placement).putBoolean(k + "track", headTracking).putBoolean(k + "hand2", handInput)
                 .putBoolean(k + "gaze", gazePointer).putBoolean(k + "dwell", dwell).putBoolean(k + "simple", simple)
                 .putBoolean(k + "skel", skeleton).putInt(k + "seg", segMode).putInt(k + "cam", cameraIndex)
                 .putBoolean(k + "dfol", dockFollow).putFloat(k + "dx", dockX).putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)

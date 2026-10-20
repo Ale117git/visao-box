@@ -20,6 +20,7 @@ interface Host {
     void webInsert(String text);
     void webKey(int key);          // KEY_DEL ou KEY_ENTER
     boolean webInputFocused();
+    void webScroll(int dx, int dy);
     int KEY_DEL = 1, KEY_ENTER = 2;
 
     // galeria e arquivos

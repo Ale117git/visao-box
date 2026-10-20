@@ -22,6 +22,7 @@ import android.provider.MediaStore;
 import android.util.Size;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -192,6 +193,24 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         return super.dispatchKeyEvent(e);
     }
 
+    /** Analógicos, gatilhos e direcional do controle (Xbox e outros controles Bluetooth). */
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        boolean joy = (e.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                || (e.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD;
+        if (joy && e.getActionMasked() == MotionEvent.ACTION_MOVE && (panel == null || panel.getParent() == null)) {
+            final float lx = e.getAxisValue(MotionEvent.AXIS_X), ly = e.getAxisValue(MotionEvent.AXIS_Y);
+            final float rx = e.getAxisValue(MotionEvent.AXIS_Z), ry = e.getAxisValue(MotionEvent.AXIS_RZ);
+            final float lt = Math.max(e.getAxisValue(MotionEvent.AXIS_LTRIGGER), e.getAxisValue(MotionEvent.AXIS_BRAKE));
+            final float rt = Math.max(e.getAxisValue(MotionEvent.AXIS_RTRIGGER), e.getAxisValue(MotionEvent.AXIS_GAS));
+            final float hx = e.getAxisValue(MotionEvent.AXIS_HAT_X), hy = e.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            final long t = SystemClock.uptimeMillis();
+            vr.onGl(() -> vr.ui.setAxes(lx, ly, rx, ry, lt, rt, hx, hy, t));
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(e);
+    }
+
     /* ================= tela cheia ================= */
 
     @SuppressWarnings("deprecation")
@@ -307,6 +326,12 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                     + "if(ok&&(e.tagName||'').toUpperCase()=='TEXTAREA'){document.execCommand('insertText',false,'\\n');return;}"
                     + "if(ok&&e.form){if(e.form.requestSubmit)e.form.requestSubmit();else e.form.submit();}})()", null);
         }
+    }
+
+    @Override
+    public void webScroll(int dx, int dy) {
+        if (dx == 0 && dy == 0) return;
+        main.post(() -> { if (web != null) web.evaluateJavascript("window.scrollBy(" + dx + "," + dy + ")", null); });
     }
 
     @Override public void webBack() { main.post(() -> { if (web != null && web.canGoBack()) web.goBack(); }); }

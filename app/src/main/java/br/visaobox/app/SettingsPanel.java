@@ -117,12 +117,15 @@ final class SettingsPanel extends ScrollView {
         section("Janelas e interação");
         choice("Posição das janelas", new String[]{"HUD", "Espacial", "Cinema"}, () -> cfg.placement, act::setPlacement);
         toggle("Rastrear a cabeça (giroscópio)", () -> cfg.headTracking, act::setTracking);
-        toggle("Mãos pela câmera (pinça)", () -> cfg.handInput, v -> cfg.handInput = v);
+        toggle("Rastrear as mãos (pinça) — desligado deixa o app mais leve", () -> cfg.handInput, v -> cfg.handInput = v);
         toggle("Mostrar esqueleto da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
         toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);
         toggle("Tocar olhando parado", () -> cfg.dwell, v -> cfg.dwell = v);
         toggle("Navegação simplificada (alvos grandes)", () -> cfg.simple, v -> cfg.simple = v);
-        note("Controle Bluetooth: A / Enter / volume + tocam no ponteiro central; setas movem o ponteiro; B fecha a janela; volume − recentraliza.");
+        note("Controle de Xbox / Bluetooth: A confirma na mira (segurar A na barra arrasta), B volta ou cancela, X abre o menu, "
+                + "Y o teclado, LB/RB afastam ou aproximam a janela, LT segurado arrasta qualquer janela, RT também confirma, "
+                + "Start abre os Ajustes e View recentraliza. Analógico esquerdo ajusta a mira (L3 centraliza), o direito rola a página. "
+                + "O app Controle, no menu, mostra os botões ao vivo.");
 
         section("Dock");
         toggle("Dock segue a cabeça (desligado = fixo no ambiente)", () -> cfg.dockFollow, v -> cfg.dockFollow = v);
