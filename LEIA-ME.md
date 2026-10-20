@@ -7,6 +7,7 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 - **Visão binocular**: uma imagem para cada olho, com paralaxe de verdade (elementos próximos e distantes têm profundidade diferente), correção de distorção da lente e centros dos olhos posicionados pela IPD em milímetros reais.
 - **Dock flutuante** com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu. No modo espacial ele fica **fixo no ambiente**: quando você vira a cabeça, ele fica no lugar (como uma janela), e uma seta na borda mostra onde ele está. Volume − (ou Ajustes → Recentralizar) traz o dock para a sua frente. Para mover, faça a pinça na barrinha embaixo dele e arraste. Para ele seguir a cabeça, ligue a opção em Ajustes → Dock.
 - **YouTube** como app próprio, com pesquisa pelo teclado virtual, vídeos tocando dentro da janela e botão de **modo cinema** (tela grande). O Navegador também tem esse botão.
+- **Gravar a realidade mista**: no app Câmera, o botão vermelho grava um vídeo em tela cheia (sem dividir os olhos), com a câmera de fundo, as janelas por cima e o som do microfone. O vídeo vai para a galeria do celular, em Filmes › Visão Box, e para o app Arquivos.
 - **Teclado virtual flutuante e móvel**, com letras, números, símbolos e acentos. Ele digita nas páginas (abre sozinho ao tocar num campo de texto), na barra de endereço ou pesquisa do Navegador e no app Notas.
 - **Janelas flutuantes** de vidro fosco, com barra de título e controles para fechar, minimizar, aproximar, afastar e pôr atrás ou na frente da pessoa. Dá para mover pela barrinha ou pelo título e redimensionar pelo canto. Várias janelas podem ficar abertas ao mesmo tempo.
 - **Três modos**:
@@ -21,6 +22,7 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 - **Recorte de pessoas** (segmentação em tempo real), nos modos Recorte, Silhueta ou Contorno. As janelas marcadas com ◐ aparecem atrás da pessoa.
 - **Interação**:
   - pinça com a mão na frente da câmera;
+  - páginas: pinça (ou A) rápida = clique; pinça e arrastar = rolar;
   - ponteiro no centro da visão;
   - "tocar olhando parado";
   - toque na tela;
@@ -84,4 +86,5 @@ Pela aba **Actions** do GitHub, na tarefa **Gerar APK**. Os modelos de mãos e d
 - O recorte de pessoas separa a silhueta da imagem, mas **não mede a distância real**. O efeito de "janela atrás da pessoa" é uma aproximação visual.
 - Muitos VR box tapam a câmera traseira. Sem imagem da câmera, o app não simula o ambiente: use o fundo Virtual 3D ou Escuro.
 - Os ajustes digitais não mudam a distância física entre as lentes, o foco nem a qualidade delas.
+- A gravação pega o som do microfone, não o som dos vídeos do YouTube (isso exigiria permissão de gravar a tela inteira do celular).
 - Em Android 9 ou mais antigo (ou no modo compatível do navegador), vídeos podem ficar pretos dentro da janela. Páginas, textos e imagens funcionam.

@@ -61,6 +61,13 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public volatile boolean calibration = false;
     public volatile boolean mirror = false;
     public volatile int webMask;
+
+    // gravação da realidade mista (uma imagem só, sem dividir os olhos)
+    public volatile Surface recSurface;
+    public volatile int recW, recH;
+    public volatile long recStart;
+    private long lastRecFrame;
+    private boolean recSoftware;
     public volatile int openWindows;
     public volatile int webFocusId = -1;
 
@@ -327,6 +334,8 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             // 1) interface: desenhada uma vez só (Canvas acelerado); o 3D de cada olho sai do shader
             drawLayer(front, useBack ? 2 : 0, camBg, now);
             if (useBack) drawLayer(back, 1, camBg, now);
+            // 1b) gravação: a mesma cena, em tela cheia
+            if (recSurface != null) drawRecording(camBg, now);
             // 2) pega as imagens novas
             front.latch();
             if (useBack) back.latch();
@@ -563,12 +572,66 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
                     ui.drawWindows(sign, mode == 2 ? 2 : 0, now);
                     ui.drawOverlay(sign, now);
                     ui.drawHud(sign, now, error != null ? error : camError);
+                    drawRecIndicator(now);
                 }
             }
             c.restore();
         } finally {
             layer.surface.unlockCanvasAndPost(c);
         }
+    }
+
+    /** Desenha a cena para o vídeo: câmera de fundo + janelas + dock, como você vê (sem os dois olhos). */
+    private void drawRecording(boolean camBg, long now) {
+        if (now - lastRecFrame < 30) return;            // ~30 quadros por segundo
+        Surface s = recSurface;
+        if (s == null) return;
+        lastRecFrame = now;
+        Canvas c;
+        try { c = recSoftware ? s.lockCanvas(null) : s.lockHardwareCanvas(); }
+        catch (Throwable t) {
+            if (recSoftware) return;
+            recSoftware = true;                          // aparelho sem desenho acelerado no gravador: usa o processador
+            return;
+        }
+        String status = ui.status;
+        try {
+            int w = recW, h = recH;
+            c.drawColor(Color.BLACK);
+            c.save();
+            c.translate(w / 2f, h / 2f);
+            c.scale(h, h);
+            g.c = c;
+            if (camBg) {
+                Bitmap f = frame;
+                if (f != null && !f.isRecycled()) {
+                    RectF r = new RectF(camX0, camY0, camX0 + camDW, camY0 + camDH);
+                    c.save();
+                    if (mirror) c.scale(-1, 1);
+                    c.drawBitmap(f, null, r, g.bmp);
+                    c.restore();
+                    if (ui.cinema()) { g.fill.setColor(0xB3000000); c.drawRect(-2, -1, 2, 1, g.fill); }
+                }
+            } else drawBackground(0);
+            ui.status = "";                              // sem a barra de status no vídeo
+            ui.drawWindows(0, 0, now);
+            ui.drawOverlay(0, now);
+            ui.drawHud(0, now, null);
+            c.restore();
+        } catch (Throwable ignored) {
+        } finally {
+            ui.status = status;
+            try { s.unlockCanvasAndPost(c); } catch (Throwable ignored) { }
+        }
+    }
+
+    /** "REC" piscando no canto, só no óculos (não aparece no vídeo). */
+    private void drawRecIndicator(long now) {
+        if (recSurface == null) return;
+        long sec = Math.max(0, (now - recStart) / 1000);
+        float x = -.3f, y = -.4f;
+        if ((now / 500) % 2 == 0) g.circle(x, y, .011f, 0xFFFF3B30);
+        g.txt(String.format(Locale.US, "REC %d:%02d", sec / 60, sec % 60), x + .022f, y, .018f, 0xFFFF6B6B, Paint.Align.LEFT, g.medium);
     }
 
     private void drawNoCamera() {

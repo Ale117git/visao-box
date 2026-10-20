@@ -31,6 +31,12 @@ interface Host {
     List<File> listFiles();
     void savePhoto(Bitmap b);
 
+    // gravação da realidade mista (tela cheia, sem dividir os olhos)
+    void startRecording();
+    void stopRecording();
+    boolean isRecording();
+    long recordingSeconds();
+
     // sistema
     void openSettings();
     void startCalibration();

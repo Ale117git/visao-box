@@ -54,7 +54,7 @@ import java.util.concurrent.Executors;
 /** Liga tudo: tela binocular, câmera, sensores, navegador, galeria, arquivos e painel de ajustes. */
 public class MainActivity extends ComponentActivity implements Host, SettingsPanel.Actions {
 
-    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8;
+    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8, REQ_AUDIO = 9;
 
     private SharedPreferences prefs;
     private final Config cfg = new Config();
@@ -133,6 +133,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (code == REQ_CAMERA) {
             if (ok) cam.start();
             else vr.camError = "Permissão da câmera negada. Libere em Configurações > Apps > Visão Box.";
+        } else if (code == REQ_AUDIO) {
+            beginRecording(ok);
         } else if (code == REQ_GALLERY && ok) {
             galleryLoaded = false;
             loadGallery();
@@ -150,6 +152,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override
     protected void onPause() {
+        if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
         vr.onPause();
         cfg.save(prefs, "cur_");
@@ -289,6 +292,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         io.execute(() -> {
             List<GalleryItem> out = new ArrayList<>();
             for (File f : files) {
+                if (f.getName().endsWith(".mp4")) continue;       // vídeos não entram na grade de fotos
                 GalleryItem it = new GalleryItem();
                 it.file = f; it.name = f.getName();
                 it.thumb = decode(f, null, 256);
@@ -370,6 +374,116 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             gallery.add(0, it);
             main.post(this::refreshFiles);
         });
+    }
+
+    /* ================= gravação da realidade mista ================= */
+
+    private android.media.MediaRecorder recorder;
+    private File recFile;
+    private boolean askedAudio;
+    private volatile boolean recording;
+    private volatile long recStart;
+
+    @Override public boolean isRecording() { return recording; }
+    @Override public long recordingSeconds() { return recording ? (SystemClock.uptimeMillis() - recStart) / 1000 : 0; }
+
+    @Override
+    public void startRecording() {
+        main.post(() -> {
+            if (recorder != null) return;
+            boolean mic = has(Manifest.permission.RECORD_AUDIO);
+            if (!mic && !askedAudio) {
+                askedAudio = true;
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);  // continua no retorno
+                return;
+            }
+            beginRecording(mic);
+        });
+    }
+
+    private void beginRecording(boolean mic) {
+        if (recorder != null) return;
+        String name = "VisaoBox_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
+        File f = new File(photoDir(), name);
+        int[][] sizes = {{1280, 960}, {1280, 720}};           // 4:3 casa com a câmera; 16:9 de reserva
+        for (int[] sz : sizes) {
+            android.media.MediaRecorder r = Build.VERSION.SDK_INT >= 31 ? new android.media.MediaRecorder(this) : newRecorderOld();
+            try {
+                if (mic) r.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+                r.setVideoSource(android.media.MediaRecorder.VideoSource.SURFACE);
+                r.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+                r.setOutputFile(f.getAbsolutePath());
+                r.setVideoEncoder(android.media.MediaRecorder.VideoEncoder.H264);
+                r.setVideoSize(sz[0], sz[1]);
+                r.setVideoFrameRate(30);
+                r.setVideoEncodingBitRate(8_000_000);
+                if (mic) {
+                    r.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+                    r.setAudioSamplingRate(44100);
+                    r.setAudioEncodingBitRate(128_000);
+                }
+                r.prepare();
+                android.view.Surface surface = r.getSurface();
+                r.start();
+                recorder = r;
+                recFile = f;
+                recStart = SystemClock.uptimeMillis();
+                recording = true;
+                final int w = sz[0], h = sz[1];
+                final long t0 = recStart;
+                vr.onGl(() -> { vr.recW = w; vr.recH = h; vr.recStart = t0; vr.recSurface = surface; });
+                if (!mic) vrToast("Gravando sem som (microfone não permitido)");
+                return;
+            } catch (Throwable t) {
+                try { r.release(); } catch (Throwable ignored) { }
+                f.delete();
+            }
+        }
+        vrToast("Não consegui iniciar a gravação neste aparelho");
+    }
+
+    @SuppressWarnings("deprecation")
+    private static android.media.MediaRecorder newRecorderOld() { return new android.media.MediaRecorder(); }
+
+    @Override
+    public void stopRecording() {
+        // primeiro a tela para de desenhar no vídeo, depois o gravador fecha
+        vr.onGl(() -> { vr.recSurface = null; main.post(this::stopRecordingMain); });
+    }
+
+    private void stopRecordingMain() {
+        vr.recSurface = null;
+        android.media.MediaRecorder r = recorder;
+        recorder = null;
+        recording = false;
+        if (r == null) return;
+        boolean ok = true;
+        try { r.stop(); } catch (Throwable t) { ok = false; }
+        try { r.release(); } catch (Throwable ignored) { }
+        final File f = recFile;
+        if (!ok || f == null) { if (f != null) f.delete(); vrToast("A gravação foi curta demais"); return; }
+        refreshFiles();
+        io.execute(() -> publishVideo(f));
+    }
+
+    /** Copia o vídeo para a galeria do celular (Filmes › Visão Box). */
+    private void publishVideo(File f) {
+        if (Build.VERSION.SDK_INT < 29) return;              // nos antigos ele fica em Arquivos
+        try {
+            android.content.ContentValues v = new android.content.ContentValues();
+            v.put(MediaStore.MediaColumns.DISPLAY_NAME, f.getName());
+            v.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+            v.put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/Visão Box");
+            Uri uri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, v);
+            if (uri == null) return;
+            try (InputStream in = new java.io.FileInputStream(f);
+                 java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+                if (out == null) return;
+                byte[] buf = new byte[1 << 16];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            }
+        } catch (Throwable ignored) { }
     }
 
     /* ================= sistema ================= */

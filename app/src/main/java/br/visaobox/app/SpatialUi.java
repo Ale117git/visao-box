@@ -89,6 +89,7 @@ final class SpatialUi {
     static final class Ptr {
         boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy; float wy0, wp0;
         boolean dockDrag, dockMoved, dockHome, kbDrag; float sx, sy, ox, oy;
+        int webMode; float wfx, wfy, wlx, wly;      // página: 0 = esperando, 1 = rolando
     }
     static final class Latch {
         boolean down, rel;
@@ -724,8 +725,11 @@ final class SpatialUi {
                 if (w.app == DESENHO) {
                     Stroke s = new Stroke(); s.c = w.pen; s.pts.add(l); w.strokes.add(s);
                 } else if (isWeb(w.app)) {
+                    // ainda não sabemos se é clique ou rolagem: decide ao mexer ou soltar
                     RectF a = navArea(parts(w));
-                    host.webTouch(w.app, MotionEvent.ACTION_DOWN, (l[0] - a.left) / a.width(), (l[1] - a.top) / a.height());
+                    p.webMode = 0;
+                    p.wfx = p.wlx = (l[0] - a.left) / a.width();
+                    p.wfy = p.wly = (l[1] - a.top) / a.height();
                 }
                 break;
             }
@@ -806,18 +810,28 @@ final class SpatialUi {
                 if (Math.hypot(l[0] - last[0], l[1] - last[1]) > .002f && s.pts.size() < 1500) s.pts.add(l);
             } else if (isWeb(w.app)) {
                 RectF a = navArea(parts(w));
-                host.webTouch(w.app, MotionEvent.ACTION_MOVE, (l[0] - a.left) / a.width(), (l[1] - a.top) / a.height());
+                float fx = (l[0] - a.left) / a.width(), fy = (l[1] - a.top) / a.height();
+                if (p.webMode == 0 && Math.hypot((fx - p.wfx) * a.width(), (fy - p.wfy) * a.height()) > .018f) {
+                    p.webMode = 1;                       // mexeu: vira rolagem
+                    synth.hover();
+                }
+                if (p.webMode == 1) {
+                    float pageW = WebPane.WIDTH, pageH = WebPane.WIDTH / Math.max(.3f, a.width() / a.height());
+                    int dx = Math.round((p.wlx - fx) * pageW * 1.6f), dy = Math.round((p.wly - fy) * pageH * 1.6f);
+                    if (dx != 0 || dy != 0) { host.webScroll(w.app, dx, dy); p.wlx = fx; p.wly = fy; }
+                }
             }
         }
     }
 
     private void release(Ptr p) {
-        if (p.hit != null && p.hit.type == H_AREA && p.hit.win != null && isWeb(p.hit.win.app)) {
+        if (p.hit != null && p.hit.type == H_AREA && p.hit.win != null && isWeb(p.hit.win.app) && p.webMode == 0) {
+            // não mexeu: é um clique no ponto onde começou
             Win w = p.hit.win;
-            float[] l = local(w, p.x, p.y);
-            RectF a = navArea(parts(w));
-            host.webTouch(w.app, MotionEvent.ACTION_UP, (l[0] - a.left) / a.width(), (l[1] - a.top) / a.height());
+            host.webTouch(w.app, MotionEvent.ACTION_DOWN, p.wfx, p.wfy);
+            host.webTouch(w.app, MotionEvent.ACTION_UP, p.wfx, p.wfy);
         }
+        p.webMode = 0;
         if (p.resize != null && isWeb(p.resize.app)) host.webAspect(p.resize.app, contentAspect(p.resize));
         if (p.dockDrag) {
             if (!p.dockMoved && p.dockHome) toggleWindows(now());
@@ -1213,7 +1227,8 @@ final class SpatialUi {
                 break;
             }
             case CAMERA:
-                out.add(new Btn("shot", C.right - .05f, C.centerY(), .034f));
+                out.add(new Btn("shot", C.right - .05f, C.centerY() - .05f, .032f));
+                out.add(new Btn("rec", C.right - .05f, C.centerY() + .045f, .028f));
                 out.add(new Btn("swap", new RectF(C.right - .1f, C.bottom - .045f, C.right, C.bottom - .008f)));
                 break;
             case DESENHO:
@@ -1301,6 +1316,9 @@ final class SpatialUi {
                     else say("Sem imagem da câmera", now);
                     w.shot = now;
                     synth.shutter();
+                } else if (id.equals("rec")) {
+                    if (host.isRecording()) { host.stopRecording(); say("Gravação salva na galeria (Filmes › Visão Box)", now); }
+                    else { host.startRecording(); say("Gravando a realidade mista…", now); }
                 } else if (id.equals("swap")) host.switchCamera();
                 break;
             case DESENHO:
@@ -1714,6 +1732,18 @@ final class SpatialUi {
             if (b.id.equals("shot")) {
                 g.ring(b.x, b.y, b.r, .004f, Color.WHITE);
                 g.circle(b.x, b.y, b.r * (h ? .82f : .72f), Color.WHITE);
+                g.txt("Foto", b.x, b.y + b.r + .016f, .013f, 0xB3FFFFFF, Paint.Align.CENTER, g.regular);
+            } else if (b.id.equals("rec")) {
+                boolean rec = host.isRecording();
+                g.ring(b.x, b.y, b.r, .004f, Color.WHITE);
+                if (rec) {
+                    float q = b.r * (h ? .5f : .42f);
+                    g.fill.setColor(0xFFFF3B30);
+                    g.c.drawRoundRect(new RectF(b.x - q, b.y - q, b.x + q, b.y + q), q * .3f, q * .3f, g.fill);
+                } else g.circle(b.x, b.y, b.r * (h ? .78f : .68f), 0xFFFF3B30);
+                long sec = host.recordingSeconds();
+                g.txt(rec ? String.format(Locale.US, "%d:%02d", sec / 60, sec % 60) : "Gravar", b.x, b.y + b.r + .016f, .013f,
+                        rec ? 0xFFFF6B6B : 0xB3FFFFFF, Paint.Align.CENTER, g.medium);
             } else {
                 g.glass(b.rect, b.rect.height() / 2, h, false);
                 g.txt("Trocar", b.rect.centerX(), b.rect.centerY(), .015f, Color.WHITE, Paint.Align.CENTER, g.medium);
