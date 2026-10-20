@@ -54,7 +54,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends ComponentActivity implements Host, SettingsPanel.Actions {
 
     private static final int REQ_CAMERA = 7, REQ_GALLERY = 8;
-    private static final int WEB_W = 1280;
+    private static final int WEB_W = 1024;
+    private static final float WEB_SCALE = .75f;
 
     private SharedPreferences prefs;
     private final Config cfg = new Config();
@@ -71,7 +72,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private int webH = 800;
     private volatile Bitmap webFront;
     private Bitmap webBack;
-    private String webTitle = "";
+    private volatile String webTitle = "", webUrlCache = "";
     private long webDownTime = 0;
     private String pendingUrl;
     private volatile boolean webInput = false;
@@ -151,12 +152,14 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         super.onResume();
         head.displayRotation = getWindowManager().getDefaultDisplay().getRotation();
         head.start();
+        vr.onResume();
         hideBars();
     }
 
     @Override
     protected void onPause() {
         head.stop();
+        vr.onPause();
         cfg.save(prefs, "cur_");
         super.onPause();
     }
@@ -177,17 +180,16 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         if (e.getAction() == KeyEvent.ACTION_DOWN || e.getAction() == KeyEvent.ACTION_UP) {
-            if (e.getRepeatCount() == 0 || !down) {
-                if (vr.ui.onKey(code, down, SystemClock.uptimeMillis())) return true;
-            } else if (isConfirmKey(code)) return true;
+            if (SpatialUi.handlesKey(code)) {
+                if (e.getRepeatCount() == 0 || !down) {
+                    final long t = SystemClock.uptimeMillis();
+                    vr.onGl(() -> vr.ui.onKey(code, down, t));
+                }
+                return true;
+            }
         }
-        if (web != null && vr.ui.webFocused() && code != KeyEvent.KEYCODE_BACK) return web.dispatchKeyEvent(e);
+        if (web != null && vr.webFocusedNow && code != KeyEvent.KEYCODE_BACK) return web.dispatchKeyEvent(e);
         return super.dispatchKeyEvent(e);
-    }
-
-    private static boolean isConfirmKey(int code) {
-        return code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_BUTTON_A
-                || code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN;
     }
 
     /* ================= tela cheia ================= */
@@ -207,9 +209,11 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     /* ================= navegador ================= */
 
-    @SuppressLint("SetJavaScriptEnabled")
     @Override
-    public void webOpen() {
+    public void webOpen() { main.post(this::webOpenMain); }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void webOpenMain() {
         if (web != null) return;
         web = new WebView(this);
         WebSettings s = web.getSettings();
@@ -232,12 +236,15 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     private void captureWeb() {
         try {
-            if (web != null && web.getWidth() > 0 && web.getHeight() > 0) {
-                int w = web.getWidth(), h = web.getHeight();
+            if (web != null) webUrlCache = web.getUrl() == null ? "" : web.getUrl();
+            // só copia a página quando a janela do navegador está à vista
+            if (web != null && vr.navVisible && web.getWidth() > 0 && web.getHeight() > 0) {
+                int w = Math.round(web.getWidth() * WEB_SCALE), h = Math.round(web.getHeight() * WEB_SCALE);
                 if (webBack == null || webBack.getWidth() != w || webBack.getHeight() != h)
                     webBack = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                 Canvas c = new Canvas(webBack);
                 c.drawColor(Color.WHITE);
+                c.scale(WEB_SCALE, WEB_SCALE);
                 web.draw(c);
                 Bitmap t = webFront;
                 webFront = webBack;
@@ -252,7 +259,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                 }
             }
         } catch (Throwable ignored) { }
-        main.postDelayed(this::captureWeb, 110);
+        main.postDelayed(this::captureWeb, 125);
     }
 
     @Override public Bitmap webBitmap() { return webFront; }
@@ -260,16 +267,20 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override
     public void webLoad(String url) {
-        if (web == null) { pendingUrl = url; webOpen(); }
-        else web.loadUrl(url);
+        main.post(() -> {
+            if (web == null) { pendingUrl = url; webOpenMain(); }
+            else web.loadUrl(url);
+        });
     }
 
-    @Override public String webUrl() { return web == null ? "" : (web.getUrl() == null ? "" : web.getUrl()); }
+    @Override public String webUrl() { return webUrlCache; }
 
     @Override public boolean webInputFocused() { return web != null && webInput; }
 
     @Override
-    public void webInsert(String text) {
+    public void webInsert(String text) { main.post(() -> webInsertMain(text)); }
+
+    private void webInsertMain(String text) {
         if (web == null) return;
         web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
                 + "if(!document.execCommand('insertText',false," + org.json.JSONObject.quote(text) + ")){"
@@ -279,7 +290,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     }
 
     @Override
-    public void webKey(int key) {
+    public void webKey(int key) { main.post(() -> webKeyMain(key)); }
+
+    private void webKeyMain(int key) {
         if (web == null) return;
         if (key == KEY_DEL) {
             web.evaluateJavascript("(function(){var e=document.activeElement;if(!e)return;"
@@ -296,11 +309,13 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         }
     }
 
-    @Override public void webBack() { if (web != null && web.canGoBack()) web.goBack(); }
-    @Override public void webReload() { if (web != null) web.reload(); }
+    @Override public void webBack() { main.post(() -> { if (web != null && web.canGoBack()) web.goBack(); }); }
+    @Override public void webReload() { main.post(() -> { if (web != null) web.reload(); }); }
 
     @Override
-    public void webTouch(int action, float fx, float fy) {
+    public void webTouch(int action, float fx, float fy) { main.post(() -> webTouchMain(action, fx, fy)); }
+
+    private void webTouchMain(int action, float fx, float fy) {
         if (web == null) return;
         long now = SystemClock.uptimeMillis();
         if (action == MotionEvent.ACTION_DOWN) webDownTime = now;
@@ -311,7 +326,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     }
 
     @Override
-    public void webAspect(float aspect) {
+    public void webAspect(float aspect) { main.post(() -> webAspectMain(aspect)); }
+
+    private void webAspectMain(float aspect) {
         int h = Math.round(WEB_W / Gfx.clamp(aspect, .5f, 3f));
         if (Math.abs(h - webH) < 16) return;
         webH = h;
@@ -407,8 +424,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     @Override public List<File> listFiles() { return files; }
 
     @Override
-    public void savePhoto(Bitmap b) {
-        final Bitmap copy = b.copy(Bitmap.Config.ARGB_8888, false);
+    public void savePhoto(Bitmap ignored) { main.post(() -> cam.takePhoto(this::saveBitmap)); }
+
+    private void saveBitmap(Bitmap copy) {
         io.execute(() -> {
             String name = "VisaoBox_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".jpg";
             File f = new File(photoDir(), name);
@@ -445,7 +463,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     @Override
     public void recenter() {
         head.recenter();
-        vr.ui.recentered(SystemClock.uptimeMillis());
+        final long t = SystemClock.uptimeMillis();
+        vr.onGl(() -> vr.ui.recentered(t));
     }
 
     @Override public void switchCamera() { main.post(() -> cam.next()); }
@@ -479,17 +498,17 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         vrToast("Configurações padrão restauradas");
     }
 
-    @Override public void setPlacement(int p) { vr.ui.setPlacement(p, SystemClock.uptimeMillis()); }
-    @Override public void setTracking(boolean on) { vr.ui.setTracking(on, SystemClock.uptimeMillis()); }
+    @Override public void setPlacement(int p) { final long t = SystemClock.uptimeMillis(); vr.onGl(() -> vr.ui.setPlacement(p, t)); }
+    @Override public void setTracking(boolean on) { final long t = SystemClock.uptimeMillis(); vr.onGl(() -> vr.ui.setTracking(on, t)); }
     @Override public void changed() { cfg.save(prefs, "cur_"); }
 
-    private void vrToast(String s) { vr.ui.sayNow(s); android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show(); }
+    private void vrToast(String s) { vr.onGl(() -> vr.ui.sayNow(s)); android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show(); }
 
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         if (panel != null && panel.getParent() != null) { closePanel(); return; }
-        if (vr.ui.closeFront()) return;
+        if (vr.openWindows > 0) { vr.onGl(vr.ui::closeFront); return; }
         super.onBackPressed();
     }
 }

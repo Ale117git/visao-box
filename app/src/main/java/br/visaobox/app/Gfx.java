@@ -1,7 +1,6 @@
 package br.visaobox.app;
 
 import android.graphics.Bitmap;
-import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -19,11 +18,26 @@ final class Gfx {
     final Paint grad = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
-    final Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint bmp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     final Typeface regular = Typeface.create("sans-serif", Typeface.NORMAL);
     final Typeface medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     final Typeface light = Typeface.create("sans-serif-light", Typeface.NORMAL);
+
+    private final Paint.FontMetrics fm = new Paint.FontMetrics();
+    private final LinearGradient rim = new LinearGradient(0, 0, 0, 1,
+            new int[]{0x66FFFFFF, 0x0DFFFFFF, 0x26FFFFFF}, new float[]{0, .45f, 1}, Shader.TileMode.CLAMP);
+    private final android.graphics.Matrix lm = new android.graphics.Matrix();
+    private final RectF tmp = new RectF();
+
+    /** Sombra suave barata (3 camadas), sem desfoque — rápida na placa de vídeo. */
+    void softShadow(RectF r, float rad) {
+        for (int i = 0; i < 3; i++) {
+            float e = .005f * (i + 1);
+            tmp.set(r.left - e, r.top - e + .01f, r.right + e, r.bottom + e + .012f);
+            fill.setColor(0x16000000);
+            c.drawRoundRect(tmp, rad + e, rad + e, fill);
+        }
+    }
 
     Gfx() {
         fill.setStyle(Paint.Style.FILL);
@@ -31,9 +45,6 @@ final class Gfx {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
         stroke.setStrokeJoin(Paint.Join.ROUND);
-        shadow.setStyle(Paint.Style.FILL);
-        shadow.setColor(0x66000000);
-        shadow.setMaskFilter(new BlurMaskFilter(.022f, BlurMaskFilter.Blur.NORMAL));
         text.setSubpixelText(true);
     }
 
@@ -59,7 +70,7 @@ final class Gfx {
         text.setTextSize(100);
         text.setTextAlign(align);
         text.setColor(color);
-        Paint.FontMetrics fm = text.getFontMetrics();
+        text.getFontMetrics(fm);
         c.drawText(s, 0, -(fm.ascent + fm.descent) / 2, text);
         c.restore();
     }
@@ -80,15 +91,13 @@ final class Gfx {
 
     /** Painel de vidro: sombra suave, fundo translúcido e borda iluminada em cima. */
     void glass(RectF r, float rad, boolean hl, boolean withShadow) {
-        if (withShadow) {
-            RectF s = new RectF(r);
-            s.offset(0, .014f);
-            c.drawRoundRect(s, rad, rad, shadow);
-        }
+        if (withShadow) softShadow(r, rad);
         fill.setColor(hl ? 0xB83E4152 : 0xA01C1E28);
         c.drawRoundRect(r, rad, rad, fill);
-        stroke.setShader(new LinearGradient(0, r.top, 0, r.bottom,
-                new int[]{0x66FFFFFF, 0x0DFFFFFF, 0x26FFFFFF}, new float[]{0, .45f, 1}, Shader.TileMode.CLAMP));
+        lm.setScale(1, r.height());
+        lm.postTranslate(0, r.top);
+        rim.setLocalMatrix(lm);
+        stroke.setShader(rim);
         stroke.setStrokeWidth(.0024f);
         stroke.setColor(Color.WHITE);
         c.drawRoundRect(r, rad, rad, stroke);

@@ -19,7 +19,7 @@ final class Config {
     float k1 = 0.22f, k2 = 0.10f;   // coeficientes de distorção (barril)
     float alignXmm = 0f, alignYmm = 0f; // correção de alinhamento
     float vignette = 0.45f;         // escurecimento das bordas
-    float resScale = 0.7f;          // resolução de renderização (desempenho x nitidez)
+    float resScale = 0.8f;          // resolução de renderização (desempenho x nitidez)
     float stereo3d = 1f;            // intensidade da paralaxe
 
     // ---- Conforto ----
@@ -46,6 +46,7 @@ final class Config {
     int cameraIndex = 0;
 
     // ---- Dock ----
+    boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
     float dockX = 0f, dockY = 0.30f, dockScale = 1f, dockDist = 1.2f, dockWidth = 1f;
 
     void copyFrom(Config o) {
@@ -56,7 +57,7 @@ final class Config {
         background = o.background; camBrightness = o.camBrightness; camContrast = o.camContrast; camOpacity = o.camOpacity;
         camZoom = o.camZoom; placement = o.placement; headTracking = o.headTracking; handInput = o.handInput;
         gazePointer = o.gazePointer; dwell = o.dwell; simple = o.simple; skeleton = o.skeleton; segMode = o.segMode;
-        cameraIndex = o.cameraIndex; dockX = o.dockX; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
+        cameraIndex = o.cameraIndex; dockFollow = o.dockFollow; dockX = o.dockX; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
     }
 
     void load(SharedPreferences p, String k) {
@@ -94,6 +95,7 @@ final class Config {
         skeleton = p.getBoolean(k + "skel", skeleton);
         segMode = p.getInt(k + "seg", segMode);
         cameraIndex = p.getInt(k + "cam", cameraIndex);
+        dockFollow = p.getBoolean(k + "dfol", dockFollow);
         dockX = p.getFloat(k + "dx", dockX);
         dockY = p.getFloat(k + "dy", dockY);
         dockScale = p.getFloat(k + "ds", dockScale);
@@ -115,7 +117,7 @@ final class Config {
                 .putInt(k + "place", placement).putBoolean(k + "track", headTracking).putBoolean(k + "hand", handInput)
                 .putBoolean(k + "gaze", gazePointer).putBoolean(k + "dwell", dwell).putBoolean(k + "simple", simple)
                 .putBoolean(k + "skel", skeleton).putInt(k + "seg", segMode).putInt(k + "cam", cameraIndex)
-                .putFloat(k + "dx", dockX).putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)
+                .putBoolean(k + "dfol", dockFollow).putFloat(k + "dx", dockX).putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)
                 .putFloat(k + "dw", dockWidth)
                 .putBoolean(k + "exists", true)
                 .apply();

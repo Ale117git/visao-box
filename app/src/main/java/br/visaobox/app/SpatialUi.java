@@ -135,6 +135,7 @@ final class SpatialUi {
     private final Random rnd = new Random();
     private final SimpleDateFormat fmtTime = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private final SimpleDateFormat fmtDate = new SimpleDateFormat("EEEE, d 'de' MMMM", new Locale("pt", "BR"));
+    private final SimpleDateFormat fmtDay = new SimpleDateFormat("EEE d", new Locale("pt", "BR"));
     private final SimpleDateFormat fmtFile = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
     private List<Row> rows;
     String status = "";
@@ -178,7 +179,34 @@ final class SpatialUi {
             w.s = (f / .5f) * (1.5f / Math.max(.3f, w.dist)) * cfg.uiScaleEff();
             w.visible = true;
         }
+        // dock: fixo no ambiente (modo espacial) ou preso à visão
+        dockAnchored = sp && !cfg.dockFollow;
+        if (dockAnchored) {
+            float yaw = (float) Math.atan(cfg.dockX / f), pitch = (float) -Math.atan(cfg.dockY / f);
+            float ry = HeadTracker.wrap(yaw - headYaw), rp = headPitch - pitch;
+            dockRy = ry;
+            dockVis = Math.abs(ry) < 1.25f && Math.abs(rp) < 1.25f;
+            dockCX = dockVis ? f * (float) Math.tan(ry) : 0;
+            dockCY = dockVis ? f * (float) Math.tan(rp) : 0;
+            if (!dockVis) dockRy = ry;
+        } else { dockCX = cfg.dockX; dockCY = cfg.dockY; dockVis = true; dockRy = 0; }
+        // teclado
+        float kry = sp ? HeadTracker.wrap(kbYaw - headYaw) : kbYaw, krp = sp ? headPitch - kbPitch : -kbPitch;
+        kbVis = Math.abs(kry) < 1.25f && Math.abs(krp) < 1.25f;
+        kbCX = kbVis ? f * (float) Math.tan(kry) : 0;
+        kbCY = kbVis ? f * (float) Math.tan(krp) : 0;
     }
+
+    /** Converte um ponto da visão (sem rolagem) para ângulos guardáveis (yaw, pitch). */
+    private float[] viewToAngles(float x, float y) {
+        float ry = (float) Math.atan(x / f), rp = (float) Math.atan(y / f);
+        if (spatial()) return new float[]{HeadTracker.wrap(ry + headYaw), headPitch - rp};
+        return new float[]{ry, -rp};
+    }
+
+    int visibleCount() { int k = 0; for (Win w : wins) if (w.visible) k++; return k; }
+    boolean navVisible() { for (Win w : wins) if (w.visible && w.app == NAV) return true; return false; }
+    boolean anyBehind() { for (Win w : wins) if (w.visible && w.behind) return true; return false; }
 
     private void convert(boolean from, boolean to) {
         if (from == to) return;
@@ -186,6 +214,8 @@ final class SpatialUi {
             if (to) { w.yaw = HeadTracker.wrap(w.yaw + headYaw); w.pitch += headPitch; }
             else { w.yaw = HeadTracker.wrap(w.yaw - headYaw); w.pitch -= headPitch; }
         }
+        if (to) { kbYaw = HeadTracker.wrap(kbYaw + headYaw); kbPitch += headPitch; }
+        else { kbYaw = HeadTracker.wrap(kbYaw - headYaw); kbPitch -= headPitch; }
     }
 
     void setPlacement(int p, long now) {
@@ -204,7 +234,10 @@ final class SpatialUi {
         say(on ? (trackAvail ? "Rastreamento da cabeça ligado" : "Este celular não tem sensor de rotação") : "Rastreamento da cabeça desligado", now);
     }
 
-    void recentered(long now) { say("Centro recalibrado", now); }
+    void recentered(long now) {
+        say("Centro recalibrado · dock na sua frente", now);
+        if (kbOpen) { kbYaw = 0; kbPitch = -(float) Math.atan(.1f / f); }
+    }
 
     private void enterCinema(long now) {
         if (cinemaWin != null) return;
@@ -315,7 +348,10 @@ final class SpatialUi {
     }
 
     boolean kbOpen; int kbTarget; Win kbWin; int kbLayer; boolean kbShift;
-    float kbX = 0f, kbY = .08f;
+    float kbYaw = 0f, kbPitch = -.12f;       // posição do teclado (ângulos; relativos à visão no modo HUD)
+    float kbCX, kbCY; boolean kbVis = true;   // centro na visão neste quadro
+    float dockCX, dockCY; boolean dockVis = true, dockAnchored;
+    private float dockRy;                     // quanto o dock está fora do centro (para a seta)
     final StringBuilder urlBuf = new StringBuilder();
     private final long[] kbFlash = new long[64];
     private List<Key> kbKeys; private int kbKeysLayer = -1;
@@ -386,6 +422,8 @@ final class SpatialUi {
 
     void openKeyboard(int target, Win w) {
         kbOpen = true; kbTarget = target; kbWin = w; kbLayer = 0; kbShift = false;
+        float[] a = viewToAngles(0, .1f);
+        kbYaw = a[0]; kbPitch = a[1];
         if (target == T_URL) urlBuf.setLength(0);
         synth.open();
     }
@@ -445,7 +483,7 @@ final class SpatialUi {
         Canvas c = g.c;
         float ks = kbScale();
         c.save();
-        c.translate(kbX + shift(sign, .9f), kbY);
+        c.translate(kbCX + shift(sign, .9f), kbCY);
         c.scale(ks, ks);
         g.glass(KB_PANEL, .032f, false, true);
         // linha de prévia
@@ -544,9 +582,10 @@ final class SpatialUi {
     Hit hitTest(float vx, float vy) {
         float hs = cfg.hitScale();
         // ---- teclado ----
-        if (kbOpen) {
+        if (kbOpen && kbVis) {
             float ks = kbScale();
-            float kx = (vx - kbX) / ks, ky = (vy - kbY) / ks;
+            float[] kq = toSpatial(vx, vy);
+            float kx = (kq[0] - kbCX) / ks, ky = (kq[1] - kbCY) / ks;
             if (Math.hypot(kx - (KB_PANEL.right - .03f), ky - (KB_PANEL.top + .033f)) < .018f * 1.5f * hs) return new Hit(H_KBCLOSE, "kbclose");
             if (kx > -.09f && kx < .09f && ky > KB_PANEL.bottom + .01f && ky < KB_PANEL.bottom + .06f) return new Hit(H_KBGRAB, "kbgrab");
             List<Key> keys = kbKeys();
@@ -559,7 +598,8 @@ final class SpatialUi {
         }
         // ---- dock (preso à visão) ----
         float ds = dockScale();
-        float lx = (vx - cfg.dockX) / ds, ly = (vy - cfg.dockY) / ds;
+        float[] dq = dockAnchored ? toSpatial(vx, vy) : new float[]{vx, vy};
+        float lx = dockVis ? (dq[0] - dockCX) / ds : 99, ly = dockVis ? (dq[1] - dockCY) / ds : 99;
         for (int i = 0; i < DOCK.length; i++) {
             if (Math.hypot(lx - dockIconX(i), ly) < .036f * hs) { Hit h = new Hit(H_DOCK, "dock:" + i); h.index = i; return h; }
         }
@@ -623,10 +663,11 @@ final class SpatialUi {
             case H_CLOCK: synth.click(); openApp(RELOGIO, now); break;
             case H_HOMEBAR: case H_DOCKBODY:
                 p.dockDrag = true; p.dockHome = h.type == H_HOMEBAR; p.dockMoved = false;
-                p.sx = p.x; p.sy = p.y; p.ox = cfg.dockX; p.oy = cfg.dockY;
+                { float[] q0 = dockAnchored ? toSpatial(p.x, p.y) : new float[]{p.x, p.y}; p.sx = q0[0]; p.sy = q0[1]; }
+                p.ox = dockCX; p.oy = dockCY;
                 break;
             case H_KBGRAB: case H_KBBODY:
-                p.kbDrag = true; p.sx = p.x; p.sy = p.y; p.ox = kbX; p.oy = kbY;
+                { float[] q0 = toSpatial(p.x, p.y); p.kbDrag = true; p.sx = q0[0]; p.sy = q0[1]; p.ox = kbCX; p.oy = kbCY; }
                 break;
             case H_KBCLOSE: synth.click(); kbOpen = false; break;
             case H_KEY: {
@@ -689,14 +730,24 @@ final class SpatialUi {
 
     private void hold(Ptr p) {
         if (p.dockDrag) {
-            float dx = p.x - p.sx, dy = p.y - p.sy;
+            float[] q = dockAnchored ? toSpatial(p.x, p.y) : new float[]{p.x, p.y};
+            float dx = q[0] - p.sx, dy = q[1] - p.sy;
             if (!p.dockMoved && Math.hypot(dx, dy) > .012f) p.dockMoved = true;
-            if (p.dockMoved) { cfg.dockX = Gfx.clamp(p.ox + dx, -.45f, .45f); cfg.dockY = Gfx.clamp(p.oy + dy, -.42f, .46f); }
+            if (p.dockMoved) {
+                float tx = p.ox + dx, ty = p.oy + dy;
+                if (dockAnchored) {
+                    float yaw = Gfx.clamp(HeadTracker.wrap((float) Math.atan(tx / f) + headYaw), -1.2f, 1.2f);
+                    float pitch = Gfx.clamp(headPitch - (float) Math.atan(ty / f), -1.1f, 1.1f);
+                    cfg.dockX = f * (float) Math.tan(yaw);
+                    cfg.dockY = -f * (float) Math.tan(pitch);
+                } else { cfg.dockX = Gfx.clamp(tx, -.45f, .45f); cfg.dockY = Gfx.clamp(ty, -.42f, .46f); }
+            }
             return;
         }
         if (p.kbDrag) {
-            kbX = Gfx.clamp(p.ox + (p.x - p.sx), -.5f, .5f);
-            kbY = Gfx.clamp(p.oy + (p.y - p.sy), -.4f, .45f);
+            float[] q = toSpatial(p.x, p.y);
+            float[] a = viewToAngles(p.ox + q[0] - p.sx, p.oy + q[1] - p.sy);
+            kbYaw = a[0]; kbPitch = a[1];
             return;
         }
         if (p.drag != null) {
@@ -790,6 +841,19 @@ final class SpatialUi {
     }
 
     void hover(float x, float y, long now) { tX = x; tY = y; tLast = now; }
+
+    static boolean handlesKey(int code) {
+        switch (code) {
+            case KeyEvent.KEYCODE_ENTER: case KeyEvent.KEYCODE_DPAD_CENTER: case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_BUTTON_R1: case KeyEvent.KEYCODE_BUTTON_R2: case KeyEvent.KEYCODE_VOLUME_UP:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER: case KeyEvent.KEYCODE_BUTTON_SELECT: case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_BUTTON_1: case KeyEvent.KEYCODE_VOLUME_DOWN: case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_ESCAPE: case KeyEvent.KEYCODE_DPAD_LEFT: case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_UP: case KeyEvent.KEYCODE_DPAD_DOWN:
+                return true;
+            default: return false;
+        }
+    }
 
     boolean onKey(int code, boolean down, long now) {
         switch (code) {
@@ -1081,6 +1145,8 @@ final class SpatialUi {
         r.add(new Row("Rastrear a cabeça", Row.TOGGLE, () -> cfg.headTracking ? "Ligado" : "Desligado",
                 null, () -> setTracking(!cfg.headTracking, now())));
         r.add(new Row("Centro da visão", Row.ACTION, () -> "Recentralizar", null, () -> host.recenter()));
+        r.add(new Row("Dock", Row.TOGGLE, () -> cfg.dockFollow ? "Segue a cabeça" : "Fixo no ambiente",
+                null, () -> cfg.dockFollow = !cfg.dockFollow));
         r.add(new Row("Recorte de pessoas", Row.CYCLE, () -> seg[cfg.segMode],
                 () -> cfg.segMode = (cfg.segMode + 3) % 4, () -> cfg.segMode = (cfg.segMode + 1) % 4));
         r.add(new Row("Ponteiro central", Row.TOGGLE, () -> cfg.gazePointer ? "Ligado" : "Desligado",
@@ -1588,13 +1654,18 @@ final class SpatialUi {
 
     /* ================= desenho: dock e HUD ================= */
 
+    private final LinearGradient[] iconGrad = new LinearGradient[COLS.length];
+
     void appIcon(int app, float x, float y, float r, boolean hl) {
         Canvas c = g.c;
         if (hl) g.circle(x, y + r * .12f, r * 1.32f, 0x26FFFFFF);
-        RectF sh = new RectF(x - r, y - r + r * .18f, x + r, y + r + r * .18f);
-        c.drawRoundRect(sh, r * .5f, r * .5f, g.shadow);
         RectF rr = new RectF(x - r, y - r, x + r, y + r);
-        g.grad.setShader(new LinearGradient(0, y - r, 0, y + r, COLS[app][0], COLS[app][1], Shader.TileMode.CLAMP));
+        g.fill.setColor(0x33000000);
+        c.drawRoundRect(new RectF(x - r, y - r + r * .16f, x + r, y + r + r * .16f), r * .5f, r * .5f, g.fill);
+        if (iconGrad[app] == null) iconGrad[app] = new LinearGradient(0, -1, 0, 1, COLS[app][0], COLS[app][1], Shader.TileMode.CLAMP);
+        lm.setScale(1, r); lm.postTranslate(0, y);
+        iconGrad[app].setLocalMatrix(lm);
+        g.grad.setShader(iconGrad[app]);
         c.drawRoundRect(rr, r * .5f, r * .5f, g.grad);
         g.grad.setShader(null);
         g.fill.setColor(0x2EFFFFFF);
@@ -1684,18 +1755,52 @@ final class SpatialUi {
         c.restore();
     }
 
-    void drawHud(int sign, long now, String error) {
+    /** Dock e teclado: presos ao ambiente no modo espacial (com a rolagem da cabeça) ou à visão. */
+    void drawOverlay(int sign, long now) {
         Canvas c = g.c;
-        // ---- dock ----
+        boolean rollIt = spatial() && roll != 0;
+        if (dockAnchored) {
+            c.save();
+            if (rollIt) c.rotate((float) -Math.toDegrees(roll));
+            if (dockVis) drawDock(sign, now);
+            c.restore();
+            if (Math.abs(dockRy) > .55f) drawDockArrow(dockRy > 0);
+        } else drawDock(sign, now);
+        if (kbOpen && kbVis) {
+            c.save();
+            if (rollIt) c.rotate((float) -Math.toDegrees(roll));
+            drawKeyboard(sign, now);
+            c.restore();
+        }
+    }
+
+    /** Seta na borda da visão apontando para o dock quando ele está longe. */
+    private void drawDockArrow(boolean right) {
+        float x = right ? eyeHalfW - .06f : -eyeHalfW + .06f, y = .34f, d = right ? 1 : -1;
+        RectF r = new RectF(x - .05f, y - .028f, x + .05f, y + .028f);
+        g.glass(r, .028f, false, false);
+        g.line(x + .022f * d, y, x + .008f * d, y - .012f, .003f, Color.WHITE);
+        g.line(x + .022f * d, y, x + .008f * d, y + .012f, .003f, Color.WHITE);
+        g.txt("Dock", x - .012f * d, y, .016f, Color.WHITE, Paint.Align.CENTER, g.medium);
+    }
+
+    private final android.graphics.Matrix lm = new android.graphics.Matrix();
+    private LinearGradient dockRim;
+
+    private void drawDock(int sign, long now) {
+        Canvas c = g.c;
         float ds = dockScale();
         c.save();
-        c.translate(cfg.dockX + shift(sign, cfg.dockDist), cfg.dockY);
+        c.translate(dockCX + shift(sign, cfg.dockDist), dockCY);
         c.scale(ds, ds);
         RectF pill = dockPill();
-        c.drawRoundRect(new RectF(pill.left, pill.top + .012f, pill.right, pill.bottom + .012f), .06f, .06f, g.shadow);
+        g.softShadow(pill, .06f);
         g.fill.setColor(0xD9141620);
         c.drawRoundRect(pill, .06f, .06f, g.fill);
-        g.stroke.setShader(new LinearGradient(0, pill.top, 0, pill.bottom, 0x55FFFFFF, 0x10FFFFFF, Shader.TileMode.CLAMP));
+        if (dockRim == null) dockRim = new LinearGradient(0, 0, 0, 1, 0x55FFFFFF, 0x10FFFFFF, Shader.TileMode.CLAMP);
+        lm.setScale(1, pill.height()); lm.postTranslate(0, pill.top);
+        dockRim.setLocalMatrix(lm);
+        g.stroke.setShader(dockRim);
         g.stroke.setStrokeWidth(.0025f);
         c.drawRoundRect(pill, .06f, .06f, g.stroke);
         g.stroke.setShader(null);
@@ -1706,7 +1811,7 @@ final class SpatialUi {
         c.drawRoundRect(ct, .03f, .03f, g.fill);
         Date d = new Date();
         g.txt(fmtTime.format(d), ct.centerX(), ct.centerY() - .01f, .028f, Color.WHITE, Paint.Align.CENTER, g.medium);
-        g.txt(new SimpleDateFormat("EEE d", new Locale("pt", "BR")).format(d), ct.centerX(), ct.centerY() + .022f, .014f, 0xB3FFFFFF, Paint.Align.CENTER, g.regular);
+        g.txt(fmtDay.format(d), ct.centerX(), ct.centerY() + .022f, .014f, 0xB3FFFFFF, Paint.Align.CENTER, g.regular);
         // ícones
         for (int i = 0; i < DOCK.length; i++) {
             float an = dockAnim[i];
@@ -1714,7 +1819,7 @@ final class SpatialUi {
             appIcon(DOCK[i], x, y, .033f * (1 + .18f * an), an > .5f);
             if (an > .05f) g.txt(NAMES[DOCK[i]], x, -.1f - .012f * an, .017f, Gfx.a(Color.WHITE, an), Paint.Align.CENTER, g.medium);
         }
-        // indicador de início
+        // alça: arrastar move o dock, toque rápido oculta/mostra as janelas
         boolean hh = hov.contains("home");
         g.fill.setColor(hh ? 0xF2FFFFFF : 0xB3FFFFFF);
         c.drawRoundRect(new RectF(-.15f, .085f, .15f, .097f), .006f, .006f, g.fill);
@@ -1728,7 +1833,11 @@ final class SpatialUi {
             g.txt((String) ch.get(i)[0], r.centerX(), r.centerY(), .016f, Color.WHITE, Paint.Align.CENTER, g.medium);
         }
         c.restore();
+    }
 
+    /** Avisos, mãos e ponteiros: sempre presos à visão. */
+    void drawHud(int sign, long now, String error) {
+        Canvas c = g.c;
         // ---- avisos ----
         float top = -.47f;
         g.txt(status, 0, top, .016f, 0x99FFFFFF, Paint.Align.CENTER, g.medium);
@@ -1736,14 +1845,12 @@ final class SpatialUi {
         if (toast != null && now - toastT < 2200) {
             float ta = Math.min(1, (2200 - (now - toastT)) / 300f);
             float tw = g.width(toast, .018f, g.medium) + .05f;
-            float ty = cfg.dockY > -.1f ? cfg.dockY - .2f * ds : cfg.dockY + .2f * ds;
-            RectF tr = new RectF(cfg.dockX - tw / 2, ty - .03f, cfg.dockX + tw / 2, ty + .012f);
+            float ty = .2f;
+            RectF tr = new RectF(-tw / 2, ty - .03f, tw / 2, ty + .012f);
             g.fill.setColor(Gfx.a(0xE6202230, ta));
             c.drawRoundRect(tr, .02f, .02f, g.fill);
             g.txt(toast, tr.centerX(), tr.centerY(), .018f, Gfx.a(Color.WHITE, ta), Paint.Align.CENTER, g.medium);
         }
-
-        if (kbOpen) drawKeyboard(sign, now);
 
         // ---- mãos e ponteiros (alinhados à câmera) ----
         for (int i = 0; i < 2; i++) {

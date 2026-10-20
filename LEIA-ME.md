@@ -5,7 +5,7 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 ## O que tem
 
 - **Visão binocular**: uma imagem para cada olho, com paralaxe de verdade (elementos próximos e distantes têm profundidade diferente), correção de distorção da lente e centros dos olhos posicionados pela IPD em milímetros reais.
-- **Dock flutuante** na parte de baixo, com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu. Para mover o dock, faça a pinça na barrinha embaixo dele (ou no fundo dele) e arraste. Um toque rápido na barrinha oculta ou mostra as janelas.
+- **Dock flutuante** com relógio e os apps Navegador, Galeria, Câmera, Ajustes, Arquivos, Web e Menu. No modo espacial ele fica **fixo no ambiente**: quando você vira a cabeça, ele fica no lugar (como uma janela), e uma seta na borda mostra onde ele está. Volume − (ou Ajustes → Recentralizar) traz o dock para a sua frente. Para mover, faça a pinça na barrinha embaixo dele e arraste. Para ele seguir a cabeça, ligue a opção em Ajustes → Dock.
 - **Teclado virtual flutuante e móvel**, com letras, números, símbolos e acentos. Ele digita nas páginas (abre sozinho ao tocar num campo de texto), na barra de endereço ou pesquisa do Navegador e no app Notas.
 - **Janelas flutuantes** de vidro fosco, com barra de título e controles para fechar, minimizar, aproximar, afastar e pôr atrás ou na frente da pessoa. Dá para mover pela barrinha ou pelo título e redimensionar pelo canto. Várias janelas podem ficar abertas ao mesmo tempo.
 - **Três modos**:
@@ -37,11 +37,20 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
 | B / Esc | fecha a janela da frente |
 | Volume − | recentraliza a visão |
 
+## Desempenho (motor OpenGL ES)
+
+- A imagem da câmera vai direto para a placa de vídeo (textura externa), sem cópias.
+- A interface de cada olho é desenhada com Canvas acelerado por hardware numa textura.
+- Um shader GLSL junta câmera, recorte de pessoas, interface, cores e vinheta numa passada só.
+- A distorção da lente é feita por uma malha de vértices.
+- O reconhecimento de mãos usa a GPU quando dá (com reserva no processador) e acompanha uma mão.
+- A análise da câmera reaproveita a memória a cada quadro, sem pausas para limpeza de memória.
+
 ## Módulos (app/src/main/java/br/visaobox/app)
 
 | Arquivo | Função |
 |---|---|
-| `VrView.java` | renderização binocular, distorção, fundos, recorte, calibração |
+| `VrView.java` | motor OpenGL ES: shaders, malha de distorção, câmera, recorte, calibração |
 | `SpatialUi.java` | janelas, dock, apps e interação |
 | `HeadTracker.java` | sensores e rastreamento da cabeça |
 | `CameraVision.java` | captura da câmera, mãos e segmentação (MediaPipe) |

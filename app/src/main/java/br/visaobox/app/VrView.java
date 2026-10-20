@@ -4,72 +4,130 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.SurfaceTexture;
+import android.opengl.GLES11Ext;
+import android.opengl.GLES20;
+import android.opengl.GLSurfaceView;
+import android.opengl.GLUtils;
+import android.opengl.Matrix;
 import android.os.SystemClock;
 import android.view.MotionEvent;
-import android.view.View;
+import android.view.Surface;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.ShortBuffer;
 import java.util.Locale;
 import java.util.Random;
 
-/**
- * Renderização binocular: cada olho é desenhado numa imagem própria (com paralaxe),
- * depois a imagem é deformada (distorção de barril) para compensar a lente do VR box.
- * O centro de cada olho fica a IPD/2 do centro da tela, em milímetros reais.
- */
-public class VrView extends View {
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
 
-    static final int MESH = 24;
+/**
+ * Motor de renderização em OpenGL ES 2.0.
+ *  - A câmera chega direto na placa de vídeo (textura externa, sem cópia).
+ *  - A interface de cada olho é desenhada com Canvas acelerado por hardware numa textura.
+ *  - Um shader GLSL junta tudo: câmera, janelas atrás da pessoa, recorte, interface, cores e vinheta.
+ *  - A distorção da lente é feita por uma malha de vértices (barata).
+ */
+public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
+
+    static final int MESH = 32;
 
     final Config cfg;
     final HeadTracker head;
     final SpatialUi ui;
     private final Gfx g = new Gfx();
 
-    // dados vindos da câmera e dos modelos (outras threads)
-    public volatile Bitmap frame;
+    /* ---------- dados vindos de outras threads ---------- */
+    public volatile Bitmap frame;                 // imagem da análise (em pé), para a janela Câmera e reserva
+    public volatile long frameStamp;
     public volatile float[][] rawHands = new float[0][];
     public volatile long rawStamp = 0;
-    public volatile Bitmap segMask, segCut;
+    public volatile byte[] maskData;              // máscara de pessoas (0..255), em pé
+    public volatile int maskW, maskH;
+    public volatile long maskStamp;
     public volatile boolean handReady, segReady;
     public volatile String error, camError;
     public volatile String camLabel = "";
-    volatile boolean calibration = false;
+    public volatile boolean calibration = false;
+    public volatile boolean mirror = false;
+    public volatile int camRot = 0, camBufW = 0, camBufH = 0;
+    public volatile boolean navVisible;
+    public volatile int openWindows;
+    public volatile boolean webFocusedNow;
 
-    // geometria dos olhos (pixels da tela)
-    private int n = 2;
+    public interface CameraSurfaceListener { void onCameraSurface(SurfaceTexture st); }
+    private volatile CameraSurfaceListener camListener;
+    private volatile SurfaceTexture camST;
+    private volatile boolean camFrameNew;
+    private volatile long lastCamFrame;
+
+    /* ---------- geometria (pixels da tela) ---------- */
+    private volatile int W, H, n = 2;
+    private volatile float eyeW, eyeH;
     private final float[] eyeCX = new float[2], eyeCY = new float[2];
-    private float eyeW, eyeH;
-    private final Bitmap[] eyeBmp = new Bitmap[2];
-    private final Canvas[] eyeCanvas = new Canvas[2];
-    private final float[][] mesh = new float[2][];
+    private volatile boolean distNow;
+    private volatile float k1Now, k2Now;
+
+    /* ---------- GL ---------- */
+    private int prog, aPos, aScene;
+    private int uUiS, uUiT, uUiMat, uBackMat, uCamS, uCamT, uCamMat, uUpS, uUpT;
+    private int uCam, uCam2D, uUi, uBack, uMask, uBg, uHasBack, uSeg, uMaskTexel, uCamAdj, uAdj, uVigR;
+    private int camTex, cam2DTex, maskTex;
+    private final float[] camMat = new float[16], ident = new float[16];
+    private long cam2DStamp = -1, maskStampGl = -1;
+    private int cam2DW, cam2DH, maskTexW, maskTexH;
+    private ByteBuffer maskBuf;
+    private final Layer[] front = new Layer[2], back = new Layer[2];
+    private final FloatBuffer[] meshPos = new FloatBuffer[2], meshScene = new FloatBuffer[2];
+    private ShortBuffer meshIdx;
+    private int meshCount;
     private String meshKey = "";
 
-    private final Paint outPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
-    private final Paint camPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Paint tintPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Paint vigPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private String outKey = "", camKey = "";
+    // câmera na cena
+    private float camX0, camY0, camDW, camDH, upW = 4, upH = 3;
 
     // cabeça suavizada
     private float sYaw, sPitch, sRoll;
     private long lastT = 0;
     private int fpsFrames; private long fpsT; private int fps;
-
-    // ambiente virtual
     private final float[][] stars = new float[160][3];
 
-    // mapeamento da câmera na cena
-    private float camX0, camY0, camDW, camDH;
+    /** Uma camada de interface: Canvas acelerado desenhando numa textura do OpenGL. */
+    static final class Layer {
+        final int tex, w, h;
+        final SurfaceTexture st;
+        final Surface surface;
+        final float[] mat = new float[16];
+
+        Layer(int w, int h) {
+            this.w = w; this.h = h;
+            tex = genOes();
+            st = new SurfaceTexture(tex);
+            st.setDefaultBufferSize(w, h);
+            surface = new Surface(st);
+            Matrix.setIdentityM(mat, 0);
+        }
+
+        void latch() {
+            try { st.updateTexImage(); st.getTransformMatrix(mat); } catch (Throwable ignored) { }
+        }
+
+        void release() {
+            try { surface.release(); } catch (Throwable ignored) { }
+            try { st.release(); } catch (Throwable ignored) { }
+            GLES20.glDeleteTextures(1, new int[]{tex}, 0);
+        }
+    }
 
     public VrView(Context ctx, Config cfg, HeadTracker head, Host host) {
         super(ctx);
@@ -82,23 +140,250 @@ public class VrView extends View {
             s[1] = (float) Math.asin(r.nextFloat() * .95f + .02f);
             s[2] = .4f + r.nextFloat() * .6f;
         }
-        tintPaint.setColorFilter(new PorterDuffColorFilter(0xFF7CC4FF, PorterDuff.Mode.SRC_IN));
+        Matrix.setIdentityM(ident, 0);
+        Matrix.setIdentityM(camMat, 0);
+        setEGLContextClientVersion(2);
+        setPreserveEGLContextOnPause(true);
+        setRenderer(this);
+        setRenderMode(RENDERMODE_CONTINUOUSLY);
         setFocusable(true);
         setFocusableInTouchMode(true);
         setKeepScreenOn(true);
     }
 
-    /* ================= geometria ================= */
+    /** Roda uma ação na thread da tela (onde vive a interface). */
+    void onGl(Runnable r) { queueEvent(r); }
+
+    void setCameraSurfaceListener(CameraSurfaceListener l) {
+        camListener = l;
+        SurfaceTexture st = camST;
+        if (l != null && st != null) l.onCameraSurface(st);
+    }
+
+    /* ================= shaders ================= */
+
+    private static final String VS =
+            "attribute vec2 aPos;\n" +
+            "attribute vec2 aScene;\n" +
+            "uniform vec3 uUiS; uniform vec3 uUiT; uniform mat4 uUiMat; uniform mat4 uBackMat;\n" +
+            "uniform vec3 uCamS; uniform vec3 uCamT; uniform mat4 uCamMat;\n" +
+            "uniform vec3 uUpS; uniform vec3 uUpT;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vCam; varying vec2 vUp; varying vec2 vScene;\n" +
+            "void main() {\n" +
+            "  vec3 p = vec3(aScene, 1.0);\n" +
+            "  vec4 u = vec4(dot(p, uUiS), dot(p, uUiT), 0.0, 1.0);\n" +
+            "  vUi = (uUiMat * u).xy;\n" +
+            "  vBack = (uBackMat * u).xy;\n" +
+            "  vCam = (uCamMat * vec4(dot(p, uCamS), dot(p, uCamT), 0.0, 1.0)).xy;\n" +
+            "  vUp = vec2(dot(p, uUpS), dot(p, uUpT));\n" +
+            "  vScene = aScene;\n" +
+            "  gl_Position = vec4(aPos, 0.0, 1.0);\n" +
+            "}\n";
+
+    private static final String FS =
+            "#extension GL_OES_EGL_image_external : require\n" +
+            "precision mediump float;\n" +
+            "uniform samplerExternalOES uCam; uniform sampler2D uCam2D;\n" +
+            "uniform samplerExternalOES uUi; uniform samplerExternalOES uBack; uniform sampler2D uMask;\n" +
+            "uniform int uBg; uniform int uHasBack; uniform int uSeg;\n" +
+            "uniform vec2 uMaskTexel; uniform vec4 uCamAdj; uniform vec4 uAdj; uniform float uVigR;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vCam; varying vec2 vUp; varying vec2 vScene;\n" +
+            "void main() {\n" +
+            "  vec4 ui = texture2D(uUi, vUi);\n" +
+            "  vec3 col;\n" +
+            "  if (uBg == 2) {\n" +
+            "    col = ui.rgb;\n" +
+            "  } else {\n" +
+            "    bool inside = vUp.x >= 0.0 && vUp.x <= 1.0 && vUp.y >= 0.0 && vUp.y <= 1.0;\n" +
+            "    vec3 cam;\n" +
+            "    if (uBg == 0) cam = texture2D(uCam, vCam).rgb; else cam = texture2D(uCam2D, vUp).rgb;\n" +
+            "    if (!inside) cam = vec3(0.03);\n" +
+            "    cam = clamp((cam - 0.5) * uCamAdj.y + 0.5 + uCamAdj.x, 0.0, 1.0) * uCamAdj.z * uCamAdj.w;\n" +
+            "    vec3 base = cam;\n" +
+            "    if (uHasBack == 1) { vec4 b = texture2D(uBack, vBack); base = b.rgb + base * (1.0 - b.a); }\n" +
+            "    if (uSeg > 0 && inside) {\n" +
+            "      float m = texture2D(uMask, vUp).r;\n" +
+            "      vec3 person = cam;\n" +
+            "      if (uSeg == 2) person = mix(cam, vec3(0.49, 0.77, 1.0), 0.45);\n" +
+            "      base = mix(base, person, m);\n" +
+            "      if (uSeg == 3) {\n" +
+            "        vec2 dx = vec2(uMaskTexel.x * 2.0, 0.0); vec2 dy = vec2(0.0, uMaskTexel.y * 2.0);\n" +
+            "        float nb = texture2D(uMask, vUp + dx).r + texture2D(uMask, vUp - dx).r\n" +
+            "                 + texture2D(uMask, vUp + dy).r + texture2D(uMask, vUp - dy).r;\n" +
+            "        float e = clamp(abs(m - nb * 0.25) * 6.0, 0.0, 1.0);\n" +
+            "        base = mix(base, vec3(0.49, 0.77, 1.0), e);\n" +
+            "      }\n" +
+            "    }\n" +
+            "    col = ui.rgb + base * (1.0 - ui.a);\n" +
+            "  }\n" +
+            "  float l = dot(col, vec3(0.299, 0.587, 0.114));\n" +
+            "  col = mix(vec3(l), col, uAdj.z);\n" +
+            "  col = (col - 0.5) * uAdj.y + 0.5 + uAdj.x;\n" +
+            "  float r = length(vScene) / uVigR;\n" +
+            "  col *= 1.0 - uAdj.w * smoothstep(0.72, 1.0, r);\n" +
+            "  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);\n" +
+            "}\n";
+
+    private static int shader(int type, String src) {
+        int s = GLES20.glCreateShader(type);
+        GLES20.glShaderSource(s, src);
+        GLES20.glCompileShader(s);
+        int[] ok = new int[1];
+        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0);
+        if (ok[0] == 0) {
+            String log = GLES20.glGetShaderInfoLog(s);
+            GLES20.glDeleteShader(s);
+            throw new RuntimeException("shader: " + log);
+        }
+        return s;
+    }
+
+    static int genOes() {
+        int[] t = new int[1];
+        GLES20.glGenTextures(1, t, 0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, t[0]);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        return t[0];
+    }
+
+    private static int gen2D() {
+        int[] t = new int[1];
+        GLES20.glGenTextures(1, t, 0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, t[0]);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        ByteBuffer one = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder());
+        one.put(new byte[]{0, 0, 0, (byte) 255}).position(0);
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 1, 1, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, one);
+        return t[0];
+    }
+
+    /* ================= ciclo do GL ================= */
+
+    @Override
+    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        int p = GLES20.glCreateProgram();
+        GLES20.glAttachShader(p, shader(GLES20.GL_VERTEX_SHADER, VS));
+        GLES20.glAttachShader(p, shader(GLES20.GL_FRAGMENT_SHADER, FS));
+        GLES20.glLinkProgram(p);
+        int[] ok = new int[1];
+        GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, ok, 0);
+        if (ok[0] == 0) error = "GL: " + GLES20.glGetProgramInfoLog(p);
+        prog = p;
+        aPos = GLES20.glGetAttribLocation(p, "aPos");
+        aScene = GLES20.glGetAttribLocation(p, "aScene");
+        uUiS = GLES20.glGetUniformLocation(p, "uUiS");
+        uUiT = GLES20.glGetUniformLocation(p, "uUiT");
+        uUiMat = GLES20.glGetUniformLocation(p, "uUiMat");
+        uBackMat = GLES20.glGetUniformLocation(p, "uBackMat");
+        uCamS = GLES20.glGetUniformLocation(p, "uCamS");
+        uCamT = GLES20.glGetUniformLocation(p, "uCamT");
+        uCamMat = GLES20.glGetUniformLocation(p, "uCamMat");
+        uUpS = GLES20.glGetUniformLocation(p, "uUpS");
+        uUpT = GLES20.glGetUniformLocation(p, "uUpT");
+        uCam = GLES20.glGetUniformLocation(p, "uCam");
+        uCam2D = GLES20.glGetUniformLocation(p, "uCam2D");
+        uUi = GLES20.glGetUniformLocation(p, "uUi");
+        uBack = GLES20.glGetUniformLocation(p, "uBack");
+        uMask = GLES20.glGetUniformLocation(p, "uMask");
+        uBg = GLES20.glGetUniformLocation(p, "uBg");
+        uHasBack = GLES20.glGetUniformLocation(p, "uHasBack");
+        uSeg = GLES20.glGetUniformLocation(p, "uSeg");
+        uMaskTexel = GLES20.glGetUniformLocation(p, "uMaskTexel");
+        uCamAdj = GLES20.glGetUniformLocation(p, "uCamAdj");
+        uAdj = GLES20.glGetUniformLocation(p, "uAdj");
+        uVigR = GLES20.glGetUniformLocation(p, "uVigR");
+
+        camTex = genOes();
+        SurfaceTexture st = new SurfaceTexture(camTex);
+        st.setOnFrameAvailableListener(s -> { camFrameNew = true; lastCamFrame = SystemClock.uptimeMillis(); });
+        camST = st;
+        cam2DTex = gen2D();
+        maskTex = gen2D();
+        cam2DStamp = -1; maskStampGl = -1; cam2DW = cam2DH = maskTexW = maskTexH = 0;
+        front[0] = front[1] = back[0] = back[1] = null;
+        meshKey = "";
+        CameraSurfaceListener l = camListener;
+        if (l != null) onGl(() -> l.onCameraSurface(st));
+    }
+
+    @Override
+    public void onSurfaceChanged(GL10 gl, int width, int height) {
+        W = width; H = height;
+        meshKey = "";
+    }
+
+    @Override
+    public void onDrawFrame(GL10 gl) {
+        long now = SystemClock.uptimeMillis();
+        if (lastT == 0) { lastT = now; fpsT = now; }
+        float dt = Math.min(.05f, (now - lastT) / 1000f);
+        lastT = now;
+        GLES20.glViewport(0, 0, W, H);
+        GLES20.glClearColor(0, 0, 0, 1);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        if (W == 0 || H == 0) return;
+
+        try {
+            computeGeometry();
+            updateHead(dt);
+            mapCamera(now);
+            ui.frame = frame;
+            ui.camLabel = camLabel;
+            ui.updateHands(rawHands, rawStamp, camX0, camDW, camY0, camDH, now);
+            ui.update(now, dt);
+            ui.status = statusLine(now);
+            navVisible = ui.navVisible();
+            openWindows = ui.visibleCount();
+            webFocusedNow = ui.webFocused();
+
+            boolean camBg = cfg.background == Config.BG_CAMERA && !calibration;
+            boolean segOn = camBg && cfg.segMode != Config.SEG_OFF && segReady && maskData != null;
+            boolean useBack = segOn && ui.anyBehind();
+
+            // 1) interface de cada olho (Canvas acelerado)
+            for (int e = 0; e < n; e++) {
+                int sign = n == 2 ? (e == 0 ? 1 : -1) : 0;
+                drawLayer(front[e], e, sign, useBack ? 2 : 0, camBg, now);
+                if (useBack) drawLayer(back[e], e, sign, 1, camBg, now);
+            }
+            // 2) pega as imagens novas
+            SurfaceTexture st = camST;
+            if (camFrameNew && st != null) {
+                camFrameNew = false;
+                try { st.updateTexImage(); st.getTransformMatrix(camMat); } catch (Throwable ignored) { }
+            }
+            for (int e = 0; e < n; e++) { front[e].latch(); if (useBack) back[e].latch(); }
+            boolean camLive = now - lastCamFrame < 1200;
+            int bgMode = !camBg ? 2 : (camLive ? 0 : (frame != null ? 1 : 0));
+            if (bgMode == 1) upload2D();
+            if (segOn) uploadMask();
+
+            // 3) junta tudo no shader
+            composite(bgMode, useBack, segOn);
+        } catch (Throwable t) {
+            error = "Tela: " + t.getClass().getSimpleName() + " " + t.getMessage();
+        }
+        fpsFrames++;
+        if (now - fpsT > 1000) { fps = fpsFrames; fpsFrames = 0; fpsT = now; }
+    }
+
+    /* ================= geometria e malha ================= */
+
+    private boolean distorted() { return cfg.stereo && cfg.distortion && (cfg.k1 > 0 || cfg.k2 > 0); }
 
     private void computeGeometry() {
-        int W = getWidth(), H = getHeight();
         float pxPerMm = getResources().getDisplayMetrics().xdpi / 25.4f;
         if (cfg.stereo) {
             n = 2;
             float S = Math.min(W / 2f, H) * cfg.eyeScale;
-            eyeW = eyeH = S;
-            float half = cfg.ipdMm * pxPerMm / 2f;
-            half = Gfx.clamp(half, S * .3f, W / 2f);
+            eyeW = S; eyeH = S;
+            float half = Gfx.clamp(cfg.ipdMm * pxPerMm / 2f, S * .3f, W / 2f);
             float ax = cfg.alignXmm * pxPerMm, ay = cfg.alignYmm * pxPerMm;
             eyeCX[0] = W / 2f - half + ax;
             eyeCX[1] = W / 2f + half + ax;
@@ -108,218 +393,250 @@ public class VrView extends View {
             eyeW = W; eyeH = H;
             eyeCX[0] = W / 2f; eyeCY[0] = H / 2f;
         }
+        distNow = distorted(); k1Now = cfg.k1; k2Now = cfg.k2;
         int bw = Math.max(64, Math.round(eyeW * cfg.resScale)), bh = Math.max(64, Math.round(eyeH * cfg.resScale));
-        for (int e = 0; e < n; e++) {
-            if (eyeBmp[e] == null || eyeBmp[e].getWidth() != bw || eyeBmp[e].getHeight() != bh) {
-                eyeBmp[e] = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888);
-                eyeCanvas[e] = new Canvas(eyeBmp[e]);
+        for (int e = 0; e < 2; e++) {
+            if (e < n) {
+                if (front[e] == null || front[e].w != bw || front[e].h != bh) {
+                    if (front[e] != null) front[e].release();
+                    if (back[e] != null) { back[e].release(); back[e] = null; }
+                    front[e] = new Layer(bw, bh);
+                }
+                if (back[e] == null) back[e] = new Layer(bw, bh);
             }
         }
-        String key = n + ":" + eyeW + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + cfg.distortion;
+        String key = W + ":" + H + ":" + n + ":" + eyeW + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + distNow;
         if (!key.equals(meshKey)) { meshKey = key; buildMesh(); }
         ui.eyeHalfW = eyeW / eyeH / 2f;
     }
 
-    private boolean distorted() { return cfg.stereo && cfg.distortion && (cfg.k1 > 0 || cfg.k2 > 0); }
-
     private void buildMesh() {
+        int vn = (MESH + 1) * (MESH + 1);
         float aspect = eyeW / eyeH, scale = 1 + cfg.k1 + cfg.k2;
         for (int e = 0; e < n; e++) {
-            float[] v = new float[(MESH + 1) * (MESH + 1) * 2];
-            int k = 0;
+            FloatBuffer pos = ByteBuffer.allocateDirect(vn * 8).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer sc = ByteBuffer.allocateDirect(vn * 8).order(ByteOrder.nativeOrder()).asFloatBuffer();
             for (int j = 0; j <= MESH; j++) {
                 for (int i = 0; i <= MESH; i++) {
                     float x = (i / (float) MESH * 2 - 1) * aspect, y = j / (float) MESH * 2 - 1;
                     float fct = 1;
-                    if (distorted()) {
+                    if (distNow) {
                         float r2 = x * x + y * y;
                         fct = scale / (1 + cfg.k1 * r2 + cfg.k2 * r2 * r2);
                     }
-                    v[k++] = eyeCX[e] + x * fct * eyeH / 2;
-                    v[k++] = eyeCY[e] + y * fct * eyeH / 2;
+                    float px = eyeCX[e] + x * fct * eyeH / 2, py = eyeCY[e] + y * fct * eyeH / 2;
+                    pos.put(px / W * 2 - 1).put(1 - py / H * 2);
+                    sc.put(x / 2).put(y / 2);
                 }
             }
-            mesh[e] = v;
+            pos.position(0); sc.position(0);
+            meshPos[e] = pos; meshScene[e] = sc;
         }
+        ShortBuffer idx = ByteBuffer.allocateDirect(MESH * MESH * 6 * 2).order(ByteOrder.nativeOrder()).asShortBuffer();
+        for (int j = 0; j < MESH; j++) {
+            for (int i = 0; i < MESH; i++) {
+                short a = (short) (j * (MESH + 1) + i), b = (short) (a + 1), c = (short) (a + MESH + 1), d = (short) (c + 1);
+                idx.put(a).put(c).put(b).put(b).put(c).put(d);
+            }
+        }
+        idx.position(0);
+        meshIdx = idx;
+        meshCount = MESH * MESH * 6;
     }
 
     /** Tela (px) -> coordenadas da cena, desfazendo a distorção da lente. */
     private float[] screenToScene(float px, float py) {
-        int e = (n == 2 && px > getWidth() / 2f) ? 1 : 0;
-        float dx = (px - eyeCX[e]) / (eyeH / 2), dy = (py - eyeCY[e]) / (eyeH / 2);
-        if (distorted()) {
+        int e = (n == 2 && px > W / 2f) ? 1 : 0;
+        float h2 = Math.max(1, eyeH / 2);
+        float dx = (px - eyeCX[e]) / h2, dy = (py - eyeCY[e]) / h2;
+        if (distNow) {
             float rd = (float) Math.hypot(dx, dy);
             if (rd > 1e-5f) {
-                float scale = 1 + cfg.k1 + cfg.k2, rs = rd;
-                for (int it = 0; it < 10; it++) { float r2 = rs * rs; rs = rd * (1 + cfg.k1 * r2 + cfg.k2 * r2 * r2) / scale; }
+                float k1 = k1Now, k2 = k2Now, scale = 1 + k1 + k2, rs = rd;
+                for (int it = 0; it < 10; it++) { float r2 = rs * rs; rs = rd * (1 + k1 * r2 + k2 * r2 * r2) / scale; }
                 dx *= rs / rd; dy *= rs / rd;
             }
         }
         return new float[]{dx * .5f, dy * .5f};
     }
 
-    /* ================= cores ================= */
+    /* ================= câmera ================= */
 
-    private static ColorMatrix adjust(float bri, float con, float sat) {
-        ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(sat);
-        float t = (1 - con) * 128f + bri * 255f;
-        cm.postConcat(new ColorMatrix(new float[]{con, 0, 0, 0, t, 0, con, 0, 0, t, 0, 0, con, 0, t, 0, 0, 0, 1, 0}));
-        return cm;
-    }
-
-    private void updatePaints() {
-        String k = cfg.brightness + ":" + cfg.contrast + ":" + cfg.saturation;
-        if (!k.equals(outKey)) {
-            outKey = k;
-            boolean neutral = cfg.brightness == 0 && cfg.contrast == 1 && cfg.saturation == 1;
-            outPaint.setColorFilter(neutral ? null : new ColorMatrixColorFilter(adjust(cfg.brightness, cfg.contrast, cfg.saturation)));
+    private void mapCamera(long now) {
+        boolean live = now - lastCamFrame < 1200 && camBufW > 0;
+        if (live) {
+            boolean swap = camRot == 90 || camRot == 270;
+            upW = swap ? camBufH : camBufW; upH = swap ? camBufW : camBufH;
+        } else {
+            Bitmap f = frame;
+            if (f != null) { upW = f.getWidth(); upH = f.getHeight(); }
         }
-        String c = cfg.camBrightness + ":" + cfg.camContrast;
-        if (!c.equals(camKey)) {
-            camKey = c;
-            boolean neutral = cfg.camBrightness == 0 && cfg.camContrast == 1;
-            camPaint.setColorFilter(neutral ? null : new ColorMatrixColorFilter(adjust(cfg.camBrightness, cfg.camContrast, 1)));
-        }
-        camPaint.setAlpha(Math.round(255 * Gfx.clamp(cfg.camOpacity, 0, 1)));
-    }
-
-    /* ================= quadro ================= */
-
-    @Override
-    protected void onDraw(Canvas canvas) {
-        long now = SystemClock.uptimeMillis();
-        if (lastT == 0) { lastT = now; fpsT = now; }
-        float dt = Math.min(.05f, (now - lastT) / 1000f);
-        lastT = now;
-        canvas.drawColor(Color.BLACK);
-        if (getWidth() == 0 || getHeight() == 0) { postInvalidateOnAnimation(); return; }
-
-        try {
-            computeGeometry();
-            updatePaints();
-            updateHead(dt);
-            mapCamera();
-            ui.frame = frame;
-            ui.camLabel = camLabel;
-            ui.updateHands(rawHands, rawStamp, camX0, camDW, camY0, camDH, now);
-            ui.update(now, dt);
-            ui.status = statusLine();
-
-            for (int e = 0; e < n; e++) renderEye(e, now);
-
-            for (int e = 0; e < n; e++) {
-                canvas.save();
-                if (n == 2) canvas.clipRect(e == 0 ? 0 : getWidth() / 2f, 0, e == 0 ? getWidth() / 2f : getWidth(), getHeight());
-                if (distorted()) canvas.drawBitmapMesh(eyeBmp[e], MESH, MESH, mesh[e], 0, null, 0, outPaint);
-                else canvas.drawBitmap(eyeBmp[e], null, new RectF(eyeCX[e] - eyeW / 2, eyeCY[e] - eyeH / 2,
-                        eyeCX[e] + eyeW / 2, eyeCY[e] + eyeH / 2), outPaint);
-                if (n == 2 && cfg.vignette > 0) {
-                    vigPaint.setShader(new RadialGradient(eyeCX[e], eyeCY[e], eyeH * .62f,
-                            new int[]{0x00000000, 0x00000000, Gfx.a(0xFF000000, cfg.vignette)},
-                            new float[]{0, .72f, 1}, Shader.TileMode.CLAMP));
-                    canvas.drawRect(eyeCX[e] - eyeW, 0, eyeCX[e] + eyeW, getHeight(), vigPaint);
-                }
-                canvas.restore();
-            }
-            if (n == 2) {
-                g.fill.setColor(0xFF2A2C33);
-                canvas.drawRect(getWidth() / 2f - 1, getHeight() * .25f, getWidth() / 2f + 1, getHeight(), g.fill);
-            }
-        } catch (Throwable t) {
-            error = "Tela: " + t.getClass().getSimpleName() + " " + t.getMessage();
-        }
-        fpsFrames++;
-        if (now - fpsT > 1000) { fps = fpsFrames; fpsFrames = 0; fpsT = now; }
-        postInvalidateOnAnimation();
-    }
-
-    private String statusLine() {
-        String place = ui.cinema() ? "Cinema" : (cfg.placement == Config.HUD ? "HUD" : "Espacial");
-        String track = !head.available ? "sem sensor de rotação" : (cfg.headTracking ? "cabeça ✓" : "cabeça desligada");
-        int hc = 0;
-        long now = SystemClock.uptimeMillis();
-        for (int i = 0; i < 2; i++) if (ui.handActive(i, now)) hc++;
-        String hands = !cfg.handInput ? "mãos desligadas" : (!handReady ? "carregando mãos…" : hc + (hc == 1 ? " mão" : " mãos"));
-        return place + " · " + track + " · " + hands + " · " + fps + " fps";
-    }
-
-    private void updateHead(float dt) {
-        boolean avail = head.available && head.hasData;
-        boolean on = avail && cfg.headTracking;
-        float ty = on ? head.relYaw() * cfg.headSens : 0;
-        float tp = on ? head.pitch() * cfg.headSens : 0;
-        float tr = on ? head.roll() : 0;
-        float a = Gfx.clamp(1 - cfg.headSmooth * .9f, .08f, 1f);
-        sYaw = HeadTracker.wrap(sYaw + HeadTracker.wrap(ty - sYaw) * a);
-        sPitch += (tp - sPitch) * a;
-        sRoll += (tr - sRoll) * a;
-        ui.setHead(sYaw, sPitch, sRoll, avail);
-    }
-
-    private void mapCamera() {
-        Bitmap f = frame;
-        float vw = f != null ? f.getWidth() : 640, vh = f != null ? f.getHeight() : 480;
         float aspect = eyeW / eyeH;
-        float s = Math.max(aspect / vw, 1f / vh) * cfg.camZoom;
-        camDW = vw * s; camDH = vh * s;
+        float s = Math.max(aspect / upW, 1f / upH) * cfg.camZoom;
+        camDW = upW * s; camDH = upH * s;
         camX0 = -camDW / 2; camY0 = -camDH / 2;
     }
 
-    /* ================= cada olho ================= */
+    private void upload2D() {
+        Bitmap f = frame;
+        long st = frameStamp;
+        if (f == null || st == cam2DStamp || f.isRecycled()) return;
+        cam2DStamp = st;
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, cam2DTex);
+        try {
+            if (f.getWidth() == cam2DW && f.getHeight() == cam2DH) GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, f);
+            else { GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, f, 0); cam2DW = f.getWidth(); cam2DH = f.getHeight(); }
+        } catch (Throwable ignored) { }
+    }
 
-    private void renderEye(int e, long now) {
-        Canvas c = eyeCanvas[e];
-        Bitmap b = eyeBmp[e];
-        g.c = c;
-        c.drawColor(Color.BLACK);
-        c.save();
-        c.translate(b.getWidth() / 2f, b.getHeight() / 2f);
-        float sc = b.getHeight();
-        c.scale(sc, sc);
-        int sign = n == 2 ? (e == 0 ? 1 : -1) : 0;
+    private void uploadMask() {
+        byte[] d = maskData;
+        long st = maskStamp;
+        int w = maskW, h = maskH;
+        if (d == null || st == maskStampGl || d.length < w * h || w == 0) return;
+        maskStampGl = st;
+        if (maskBuf == null || maskBuf.capacity() < w * h) maskBuf = ByteBuffer.allocateDirect(w * h).order(ByteOrder.nativeOrder());
+        maskBuf.clear();
+        maskBuf.put(d, 0, w * h).position(0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTex);
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1);
+        if (w == maskTexW && h == maskTexH)
+            GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, w, h, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, maskBuf);
+        else {
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, w, h, 0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, maskBuf);
+            maskTexW = w; maskTexH = h;
+        }
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4);
+    }
 
-        if (calibration) { drawCalibration(sign, e); c.restore(); return; }
+    /* ================= composição final ================= */
 
-        drawBackground(sign);
-        Bitmap cut = segCut, mask = segMask;
-        boolean seg = cfg.segMode != Config.SEG_OFF && cfg.background == Config.BG_CAMERA && cut != null && frame != null;
-        if (seg) {
-            ui.drawWindows(sign, 1, now);
-            drawPerson(cut, mask);
-            ui.drawWindows(sign, 2, now);
-        } else ui.drawWindows(sign, 0, now);
-        ui.drawHud(sign, now, error != null ? error : camError);
-        c.restore();
+    private void composite(int bgMode, boolean useBack, boolean segOn) {
+        GLES20.glUseProgram(prog);
+        GLES20.glDisable(GLES20.GL_BLEND);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+
+        // da cena para a câmera em pé (u, v), com espelho na câmera frontal
+        float a = 1f / camDW, c0 = -camX0 / camDW, b = 1f / camDH, d0 = -camY0 / camDH;
+        float[] uS = mirror ? new float[]{-a, 0, 1 - c0} : new float[]{a, 0, c0};
+        float[] uT = {0, b, d0};
+        // da câmera em pé para o buffer do sensor (rotação) e depois para (s, t)
+        float[] sS, sT;
+        switch (camRot) {
+            case 90: sS = uT; sT = uS; break;
+            case 180: sS = one(uS); sT = uT; break;
+            case 270: sS = one(uT); sT = one(uS); break;
+            default: sS = uS; sT = one(uT); break;
+        }
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, camTex);
+        GLES20.glUniform1i(uCam, 0);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, cam2DTex);
+        GLES20.glUniform1i(uCam2D, 1);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTex);
+        GLES20.glUniform1i(uMask, 4);
+
+        GLES20.glUniform3f(uUiS, 1f / (eyeW / eyeH), 0, .5f);
+        GLES20.glUniform3f(uUiT, 0, -1, .5f);
+        GLES20.glUniform3f(uCamS, sS[0], sS[1], sS[2]);
+        GLES20.glUniform3f(uCamT, sT[0], sT[1], sT[2]);
+        GLES20.glUniformMatrix4fv(uCamMat, 1, false, camMat, 0);
+        GLES20.glUniform3f(uUpS, uS[0], uS[1], uS[2]);
+        GLES20.glUniform3f(uUpT, uT[0], uT[1], uT[2]);
+        GLES20.glUniform1i(uBg, bgMode);
+        GLES20.glUniform1i(uHasBack, useBack ? 1 : 0);
+        GLES20.glUniform1i(uSeg, segOn ? cfg.segMode : 0);
+        GLES20.glUniform2f(uMaskTexel, 1f / Math.max(1, maskTexW), 1f / Math.max(1, maskTexH));
+        GLES20.glUniform4f(uCamAdj, cfg.camBrightness, cfg.camContrast, Gfx.clamp(cfg.camOpacity, 0, 1), ui.cinema() ? .3f : 1f);
+        GLES20.glUniform4f(uAdj, cfg.brightness, cfg.contrast, cfg.saturation, n == 2 ? cfg.vignette : 0);
+        GLES20.glUniform1f(uVigR, .62f);
+
+        GLES20.glEnableVertexAttribArray(aPos);
+        GLES20.glEnableVertexAttribArray(aScene);
+        if (n == 2) GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+        for (int e = 0; e < n; e++) {
+            if (n == 2) GLES20.glScissor(e == 0 ? 0 : W / 2, 0, W / 2, H);
+            Layer fl = front[e], bl = useBack ? back[e] : front[e];
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
+            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, fl.tex);
+            GLES20.glUniform1i(uUi, 2);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE3);
+            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, bl.tex);
+            GLES20.glUniform1i(uBack, 3);
+            GLES20.glUniformMatrix4fv(uUiMat, 1, false, fl.mat, 0);
+            GLES20.glUniformMatrix4fv(uBackMat, 1, false, bl.mat, 0);
+            GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 0, meshPos[e]);
+            GLES20.glVertexAttribPointer(aScene, 2, GLES20.GL_FLOAT, false, 0, meshScene[e]);
+            GLES20.glDrawElements(GLES20.GL_TRIANGLES, meshCount, GLES20.GL_UNSIGNED_SHORT, meshIdx);
+        }
+        GLES20.glDisableVertexAttribArray(aPos);
+        GLES20.glDisableVertexAttribArray(aScene);
+        if (n == 2) {
+            GLES20.glScissor(W / 2 - 1, 0, 2, Math.round(H * .75f));
+            GLES20.glClearColor(.165f, .173f, .2f, 1);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+        }
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+    }
+
+    /** 1 - x para uma função afim guardada como (a, b, c). */
+    private static float[] one(float[] v) { return new float[]{-v[0], -v[1], 1 - v[2]}; }
+
+    /* ================= interface (Canvas acelerado) ================= */
+
+    private void drawLayer(Layer layer, int eye, int sign, int mode, boolean camBg, long now) {
+        Canvas c = layer.surface.lockHardwareCanvas();
+        try {
+            c.drawColor(0, PorterDuff.Mode.CLEAR);
+            c.save();
+            c.translate(layer.w / 2f, layer.h / 2f);
+            c.scale(layer.h, layer.h);
+            g.c = c;
+            if (calibration) {
+                drawCalibration(sign, eye);
+            } else {
+                if (mode != 1) {
+                    if (!camBg) drawBackground(sign);
+                    else if (frame == null && now - lastCamFrame > 1200) drawNoCamera();
+                }
+                if (mode == 1) ui.drawWindows(sign, 1, now);
+                else {
+                    ui.drawWindows(sign, mode == 2 ? 2 : 0, now);
+                    ui.drawOverlay(sign, now);
+                    ui.drawHud(sign, now, error != null ? error : camError);
+                }
+            }
+            c.restore();
+        } finally {
+            layer.surface.unlockCanvasAndPost(c);
+        }
+    }
+
+    private void drawNoCamera() {
+        // não simula o ambiente: sem imagem, mostra só o aviso
+        g.txt(camError != null ? "Câmera indisponível" : "Abrindo a câmera…", 0, -.06f, .026f, 0xFFFFD27A, Paint.Align.CENTER, g.medium);
+        g.txt("Use o fundo Virtual 3D ou Escuro em Ajustes", 0, -.02f, .018f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
     private void drawBackground(int sign) {
         Canvas c = g.c;
         float hw = eyeW / eyeH / 2f + .05f;
-        if (cfg.background == Config.BG_CAMERA) {
-            Bitmap f = frame;
-            g.fill.setColor(0xFF07080C);
-            c.drawRect(-hw, -.55f, hw, .55f, g.fill);
-            if (f != null) c.drawBitmap(f, null, new RectF(camX0, camY0, camX0 + camDW, camY0 + camDH), camPaint);
-            else {
-                // não simula o ambiente: sem imagem, mostra só o aviso
-                g.txt(camError != null ? "Câmera indisponível" : "Abrindo a câmera…", 0, -.06f, .026f, 0xFFFFD27A, Paint.Align.CENTER, g.medium);
-                g.txt("Use o fundo Virtual 3D ou Escuro em Ajustes", 0, -.02f, .018f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
-            }
-            if (ui.cinema()) { g.fill.setColor(0xB3000000); c.drawRect(-hw, -.55f, hw, .55f, g.fill); }
-        } else if (cfg.background == Config.BG_VIRTUAL) {
-            drawVirtual(sign, hw);
-        } else {
+        if (cfg.background == Config.BG_VIRTUAL) drawVirtual(sign);
+        else {
             g.grad.setShader(new RadialGradient(0, .1f, .9f, 0xFF161A26, 0xFF030407, Shader.TileMode.CLAMP));
             c.drawRect(-hw, -.55f, hw, .55f, g.grad);
             g.grad.setShader(null);
         }
     }
 
-    /** Ambiente virtual simples: céu estrelado e piso quadriculado em perspectiva (com paralaxe por olho). */
-    private void drawVirtual(int sign, float hw) {
+    /** Ambiente virtual: céu estrelado e piso quadriculado em perspectiva, com paralaxe por olho. */
+    private void drawVirtual(int sign) {
         Canvas c = g.c;
-        boolean on = ui.spatial() || (cfg.headTracking && head.available && head.hasData);
+        boolean on = cfg.headTracking && head.available && head.hasData;
         float yaw = on ? sYaw : 0, pitch = on ? sPitch : 0, roll = on ? sRoll : 0;
         float f = ui.f;
         c.save();
@@ -338,17 +655,16 @@ public class VrView extends View {
             if (Math.abs(rp) > 1.2f) continue;
             g.circle(f * (float) Math.tan(ry), f * (float) Math.tan(rp), .0022f * s[2], Gfx.a(0xFFFFFFFF, .5f + .5f * s[2]));
         }
-        // piso
         float sx = (float) Math.sin(yaw), cx = (float) Math.cos(yaw);
         float sp = (float) Math.sin(pitch), cp = (float) Math.cos(pitch);
         float eo = -sign * cfg.ipdMm / 2000f * cfg.stereo3d;
         float ex = eo * cx, ey = eo * -sx;
         Path near = new Path(), far = new Path();
-        for (int k = -18; k <= 18; k++) {
+        for (int k = -14; k <= 14; k++) {
             for (int dir = 0; dir < 2; dir++) {
                 boolean started = false;
                 Path p = Math.abs(k) <= 5 ? near : far;
-                for (int t = -18; t <= 18; t++) {
+                for (int t = -14; t <= 14; t++) {
                     float wx = dir == 0 ? k : t, wy = dir == 0 ? t : k;
                     float rx = wx - ex, ryy = wy - ey;
                     float xc = rx * cx - ryy * sx, zc = rx * sx + ryy * cx, yc = -1.6f;
@@ -365,28 +681,10 @@ public class VrView extends View {
         c.drawPath(far, g.stroke);
         g.stroke.setColor(0x6648DBFB);
         c.drawPath(near, g.stroke);
-        g.grad.setShader(new LinearGradient(0, horizon - .04f, 0, horizon + .04f, new int[]{0x0048DBFB, 0x3348DBFB, 0x0048DBFB}, null, Shader.TileMode.CLAMP));
-        c.drawRect(-big, horizon - .04f, big, horizon + .04f, g.grad);
-        g.grad.setShader(null);
         c.restore();
     }
 
-    private void drawPerson(Bitmap cut, Bitmap mask) {
-        Canvas c = g.c;
-        RectF r = new RectF(camX0, camY0, camX0 + camDW, camY0 + camDH);
-        if (cfg.segMode == Config.SEG_CONTORNO && mask != null) {
-            float gx = r.width() * .012f, gy = r.height() * .012f;
-            tintPaint.setAlpha(230);
-            c.drawBitmap(mask, null, new RectF(r.left - gx, r.top - gy, r.right + gx, r.bottom + gy), tintPaint);
-        }
-        c.drawBitmap(cut, null, r, camPaint);
-        if (cfg.segMode == Config.SEG_SILHUETA && mask != null) {
-            tintPaint.setAlpha(120);
-            c.drawBitmap(mask, null, r, tintPaint);
-        }
-    }
-
-    /** Tela de calibração: grade, círculos, cruz central e alvo de fusão com a profundidade das janelas. */
+    /** Tela de calibração: grade, círculos, cruz central e alvo de fusão. */
     private void drawCalibration(int sign, int eye) {
         Canvas c = g.c;
         float hw = eyeW / eyeH / 2f + .05f;
@@ -402,10 +700,8 @@ public class VrView extends View {
         g.line(-.04f, 0, .04f, 0, .003f, Color.WHITE);
         g.line(0, -.04f, 0, .04f, .003f, Color.WHITE);
         g.txt(n == 2 ? (eye == 0 ? "OLHO ESQUERDO" : "OLHO DIREITO") : "TELA ÚNICA", 0, -.42f, .022f, 0xFF9FD3FF, Paint.Align.CENTER, g.medium);
-        // marcas nas bordas: todas devem estar visíveis pela lente
         float[][] marks = {{0, -.48f}, {0, .48f}, {-.46f, 0}, {.46f, 0}};
         for (float[] m : marks) g.circle(m[0], m[1], .012f, 0xFFFFD27A);
-        // alvo de fusão a 1,5 m
         float s = ui.shift(sign, 1.5f);
         RectF t = new RectF(-.09f + s, .14f, .09f + s, .3f);
         g.glass(t, .02f, false, false);
@@ -414,21 +710,51 @@ public class VrView extends View {
         g.txt("Ajuste até ver uma imagem só, reta e sem cortes", 0, .4f, .017f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
-    /* ================= entradas ================= */
+    /* ================= cabeça e status ================= */
+
+    private void updateHead(float dt) {
+        boolean avail = head.available && head.hasData;
+        boolean on = avail && cfg.headTracking;
+        float ty = on ? head.relYaw() * cfg.headSens : 0;
+        float tp = on ? head.pitch() * cfg.headSens : 0;
+        float tr = on ? head.roll() : 0;
+        // suavização independente da taxa de quadros
+        float k = Gfx.clamp(1 - cfg.headSmooth * .9f, .08f, 1f);
+        float a = 1 - (float) Math.pow(1 - k, Math.max(.25f, dt * 60f));
+        sYaw = HeadTracker.wrap(sYaw + HeadTracker.wrap(ty - sYaw) * a);
+        sPitch += (tp - sPitch) * a;
+        sRoll += (tr - sRoll) * a;
+        ui.setHead(sYaw, sPitch, sRoll, avail);
+    }
+
+    private String statusLine(long now) {
+        String place = ui.cinema() ? "Cinema" : (cfg.placement == Config.HUD ? "HUD" : "Espacial");
+        String track = !head.available ? "sem sensor de rotação" : (cfg.headTracking ? "cabeça ✓" : "cabeça desligada");
+        int hc = 0;
+        for (int i = 0; i < 2; i++) if (ui.handActive(i, now)) hc++;
+        String hands = !cfg.handInput ? "mãos desligadas" : (!handReady ? "carregando mãos…" : hc + (hc == 1 ? " mão" : " mãos"));
+        return place + " · " + track + " · " + hands + " · " + fps + " fps";
+    }
+
+    /* ================= entradas (thread principal -> thread da tela) ================= */
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         if (calibration) return true;
-        float[] p = screenToScene(e.getX(), e.getY());
-        ui.touch(e.getActionMasked(), p[0], p[1], SystemClock.uptimeMillis());
+        final float[] p = screenToScene(e.getX(), e.getY());
+        final int action = e.getActionMasked();
+        final long t = SystemClock.uptimeMillis();
+        onGl(() -> ui.touch(action, p[0], p[1], t));
         return true;
     }
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent e) {
-        if (e.getActionMasked() == MotionEvent.ACTION_HOVER_MOVE || e.getActionMasked() == MotionEvent.ACTION_HOVER_ENTER) {
-            float[] p = screenToScene(e.getX(), e.getY());
-            ui.hover(p[0], p[1], SystemClock.uptimeMillis());
+        int a = e.getActionMasked();
+        if (a == MotionEvent.ACTION_HOVER_MOVE || a == MotionEvent.ACTION_HOVER_ENTER) {
+            final float[] p = screenToScene(e.getX(), e.getY());
+            final long t = SystemClock.uptimeMillis();
+            onGl(() -> ui.hover(p[0], p[1], t));
             return true;
         }
         return super.onGenericMotionEvent(e);
@@ -436,6 +762,6 @@ public class VrView extends View {
 
     void resetHands() {
         rawHands = new float[0][];
-        ui.resetHands();
+        onGl(ui::resetHands);
     }
 }
