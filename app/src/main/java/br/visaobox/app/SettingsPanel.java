@@ -33,6 +33,10 @@ final class SettingsPanel extends ScrollView {
         void setPlacement(int p);
         void setTracking(boolean on);
         void changed();
+        void assistantToggled();
+        String nextVoice();
+        String voiceLabel();
+        void testVoice();
     }
 
     interface FGet { float get(); }
@@ -132,6 +136,24 @@ final class SettingsPanel extends ScrollView {
                 + "O app Controle, no menu, mostra os botões ao vivo.");
 
         toggle("Lembrar as janelas ao reabrir o app", () -> cfg.rememberLayout, v -> cfg.rememberLayout = v);
+
+        section("Assistente Visão");
+        toggle("Ouvir \"ei visão\" (usa o microfone o tempo todo, sem internet)", () -> cfg.assistant, v -> { cfg.assistant = v; act.assistantToggled(); });
+        slider("Tom da voz (menor = mais grave)", .4f, 1.3f, .02f, () -> cfg.voicePitch, v -> cfg.voicePitch = v, v -> Math.round(v * 100) + "%");
+        slider("Velocidade da fala", .5f, 1.4f, .02f, () -> cfg.voiceRate, v -> cfg.voiceRate = v, v -> Math.round(v * 100) + "%");
+        TextView vl = new TextView(getContext());
+        vl.setTextColor(0xCCFFFFFF);
+        vl.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        vl.setPadding(0, dp(8), 0, 0);
+        vl.setText(act.voiceLabel());
+        box.addView(vl);
+        LinearLayout vr0 = hrow();
+        vr0.addView(button("Trocar voz", false, () -> vl.setText(act.nextVoice())));
+        vr0.addView(button("Ouvir a voz", true, act::testVoice));
+        box.addView(vr0);
+        note("Diga \"ei visão\" e depois o pedido: \"abrir YouTube\", \"tocar Coldplay\", \"que horas são\", \"quanto é 7 vezes 8\", "
+                + "\"conta uma piada\", \"me chame de (seu nome)\", \"pare de falar\". Perguntas (\"o que é…\", \"quem foi…\") ele pesquisa na internet. "
+                + "Mais vozes: Configurações do Android → Saída de texto para voz → baixe as vozes em português do Google.");
 
         section("Dock");
         toggle("Dock segue a cabeça (desligado = fixo no ambiente)", () -> cfg.dockFollow, v -> cfg.dockFollow = v);

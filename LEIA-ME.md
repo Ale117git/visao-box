@@ -32,6 +32,16 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 5.1
+
+- **Ícone novo** do app.
+- **Visão, o assistente pessoal.** Diga **"ei visão"** e depois o pedido. Ele responde falando, com voz grave e calma. O tom e a velocidade da voz se ajustam em Ajustes → Assistente Visão, e lá também dá para trocar de voz.
+  - Ele faz tudo do comando de voz: abrir apps, pesquisar, tocar músicas, gravar, tirar foto, modo cinema e fechar janelas.
+  - Ele também responde sozinho: "que horas são", "que dia é hoje", "bateria", "quanto é 7 vezes 8", "conta uma piada", "me chame de (seu nome)", "pare de falar".
+  - Para perguntas como "o que é…" ou "quem foi…", ele pesquisa na internet.
+  - O "ei visão" é reconhecido **sem internet**, por um modelo de voz em português que vem dentro do app (por isso o APK ficou maior). Dá para desligar em Ajustes. Enquanto o app grava vídeo, ele para de ouvir.
+  - Para ter mais vozes: Configurações do Android → Saída de texto para voz → instale as vozes em português do Google.
+
 ## Novidades da 5.0
 
 - **Navegador com abas** (até 8), **★ favoritos**, **histórico**, **página inicial** com favoritos e recentes, botão de casa e **modo computador** (ícone de monitor nas abas).

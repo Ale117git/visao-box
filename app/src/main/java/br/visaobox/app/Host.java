@@ -53,6 +53,12 @@ interface Host {
     boolean isListening();
     String voiceText();
 
+    // assistente Visão
+    void speak(String text);                  // fala com a voz do Visão
+    String assistantCaption();                // o que ele está dizendo (ou null)
+    String assistantChat(String plainText);   // resposta de conversa (ou null)
+    Bitmap logo();
+
     // sistema
     void openSettings();
     void startCalibration();

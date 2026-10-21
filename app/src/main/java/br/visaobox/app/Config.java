@@ -22,7 +22,7 @@ final class Config {
     float vignette = 0.45f;         // escurecimento das bordas
     float resScale = 1.0f;          // nitidez (1 = resolução da tela, compensando a lente)
     boolean webGpu = true;
-    boolean rememberLayout = true;  // reabre as janelas como estavam          // navegador copiado pela placa de vídeo (vídeos e mais nitidez)
+    boolean rememberLayout = true;  // reabre as janelas como estavam
     float stereo3d = 1f;            // intensidade da paralaxe
 
     // ---- Conforto ----
@@ -49,6 +49,13 @@ final class Config {
     int segMode = SEG_OFF;
     int cameraIndex = 0;
 
+    // ---- Assistente Visão ----
+    boolean assistant = true;       // fica ouvindo "ei visão"
+    float voicePitch = 0.72f;       // tom (menor = mais grave)
+    float voiceRate = 0.9f;         // velocidade da fala
+    String voiceName = "";          // voz escolhida ("" = automática)
+    String userName = "";           // como o Visão chama a pessoa
+
     // ---- Dock ----
     boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
     float dockX = 0f, dockY = 0.30f, dockScale = 1f, dockDist = 1.2f, dockWidth = 1f;
@@ -62,6 +69,7 @@ final class Config {
         camZoom = o.camZoom; placement = o.placement; headTracking = o.headTracking; handInput = o.handInput;
         gazePointer = o.gazePointer; dwell = o.dwell; simple = o.simple; skeleton = o.skeleton; segMode = o.segMode;
         cameraIndex = o.cameraIndex; dockFollow = o.dockFollow; dockX = o.dockX; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
+        assistant = o.assistant; voicePitch = o.voicePitch; voiceRate = o.voiceRate; voiceName = o.voiceName; userName = o.userName;
     }
 
     void load(SharedPreferences p, String k) {
@@ -108,6 +116,11 @@ final class Config {
         dockScale = p.getFloat(k + "ds", dockScale);
         dockDist = p.getFloat(k + "dd", dockDist);
         dockWidth = p.getFloat(k + "dw", dockWidth);
+        assistant = p.getBoolean(k + "asst", assistant);
+        voicePitch = p.getFloat(k + "vpitch", voicePitch);
+        voiceRate = p.getFloat(k + "vrate", voiceRate);
+        voiceName = p.getString(k + "vname", voiceName);
+        userName = p.getString(k + "uname", userName);
         if (placement == CINEMA) placement = ESPACIAL; // o cinema começa sempre desligado
     }
 
@@ -126,6 +139,8 @@ final class Config {
                 .putBoolean(k + "skel", skeleton).putInt(k + "seg", segMode).putInt(k + "cam", cameraIndex)
                 .putBoolean(k + "dfol", dockFollow).putFloat(k + "dx", dockX).putFloat(k + "dy", dockY).putFloat(k + "ds", dockScale).putFloat(k + "dd", dockDist)
                 .putFloat(k + "dw", dockWidth)
+                .putBoolean(k + "asst", assistant).putFloat(k + "vpitch", voicePitch).putFloat(k + "vrate", voiceRate)
+                .putString(k + "vname", voiceName).putString(k + "uname", userName)
                 .putBoolean(k + "exists", true)
                 .apply();
     }

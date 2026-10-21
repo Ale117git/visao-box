@@ -54,7 +54,7 @@ import java.util.concurrent.Executors;
 /** Liga tudo: tela binocular, câmera, sensores, navegador, galeria, arquivos e painel de ajustes. */
 public class MainActivity extends ComponentActivity implements Host, SettingsPanel.Actions {
 
-    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8, REQ_AUDIO = 9, REQ_MEDIA = 10, REQ_VOICE = 11;
+    private static final int REQ_CAMERA = 7, REQ_GALLERY = 8, REQ_AUDIO = 9, REQ_MEDIA = 10, REQ_VOICE = 11, REQ_WAKE = 12;
 
     private SharedPreferences prefs;
     private final Config cfg = new Config();
@@ -63,6 +63,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private CameraVision cam;
     private FrameLayout root;
     private SettingsPanel panel;
+    private Assistant assistant;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -85,6 +86,15 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         head = new HeadTracker(this);
         vr = new VrView(this, cfg, head, this);
         cam = new CameraVision(this, vr, cfg);
+        assistant = new Assistant(this, cfg, new Assistant.Callback() {
+            @Override public void onWake() {
+                final long t = SystemClock.uptimeMillis();
+                vr.onGl(() -> vr.ui.assistantWoke(t));
+                main.postDelayed(() -> startVoice(), 350);   // depois do som de chamada
+            }
+            @Override public boolean micBusy() { return listening || recorder != null; }
+            @Override public void info(String msg) { vrToast(msg); }
+        });
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -110,7 +120,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         hideBars();
 
         cam.initModels();
-        if (has(Manifest.permission.CAMERA)) cam.start();
+        if (has(Manifest.permission.CAMERA)) { cam.start(); askWake(); }
         else requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
 
         refreshFiles();
@@ -118,6 +128,16 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         loadLists();
         if (cfg.rememberLayout) vr.pendingLayout = prefs.getString("layout", "");
         android.view.Choreographer.getInstance().postFrameCallback(webTick);
+    }
+
+    /** O "ei visão" precisa do microfone: pede uma vez ao abrir o app. */
+    private void askWake() {
+        if (!cfg.assistant) return;
+        if (has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
+        else if (!prefs.getBoolean("askedWake", false)) {
+            prefs.edit().putBoolean("askedWake", true).apply();
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_WAKE);
+        }
     }
 
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -135,6 +155,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (code == REQ_CAMERA) {
             if (ok) cam.start();
             else vr.camError = "Permissão da câmera negada. Libere em Configurações > Apps > Visão Box.";
+            askWake();
+        } else if (code == REQ_WAKE) {
+            if (ok) assistant.startWake();
         } else if (code == REQ_MEDIA) {
             mediaLoaded = false;
             loadMedia();
@@ -155,12 +178,14 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         head.start();
         vr.onResume();
         hideBars();
+        if (cfg.assistant && has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
     }
 
     @Override
     protected void onPause() {
         if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
+        assistant.stopWake();
         if (cfg.rememberLayout) prefs.edit().putString("layout", vr.ui.layoutCache).apply();
         vr.onPause();
         cfg.save(prefs, "cur_");
@@ -173,6 +198,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         io.shutdown();
         for (int i = 0; i < panes.size(); i++) panes.valueAt(i).destroy();
         if (speech != null) speech.destroy();
+        assistant.destroy();
         super.onDestroy();
     }
 
@@ -469,6 +495,48 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private volatile String heard = "";
 
     @Override public boolean isListening() { return listening; }
+
+    /* ================= assistente Visão ================= */
+
+    private Bitmap logoBmp;
+
+    @Override public void speak(String text) {
+        if (text == null || text.isEmpty()) { assistant.shutUp(); return; }
+        assistant.speak(text);
+    }
+    @Override public String assistantCaption() { return assistant.caption(); }
+    @Override public String assistantChat(String t) {
+        String before = cfg.userName;
+        String r = Assistant.chat(t, cfg, battery());
+        if (!String.valueOf(before).equals(cfg.userName)) cfg.save(prefs, "cur_");
+        return r;
+    }
+    @Override public Bitmap logo() {
+        if (logoBmp == null) {
+            try (InputStream in = getAssets().open("visao_logo.png")) { logoBmp = BitmapFactory.decodeStream(in); }
+            catch (Exception ignored) { }
+        }
+        return logoBmp;
+    }
+
+    private int battery() {
+        try {
+            android.os.BatteryManager bm = (android.os.BatteryManager) getSystemService(BATTERY_SERVICE);
+            return bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY);
+        } catch (Throwable t) { return -1; }
+    }
+
+    // ---- ajustes do assistente ----
+    @Override public void assistantToggled() {
+        if (cfg.assistant) { if (has(Manifest.permission.RECORD_AUDIO)) assistant.startWake(); else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_WAKE); }
+        else assistant.stopWake();
+    }
+    @Override public String nextVoice() { String n = assistant.nextVoice(); testVoice(); return n; }
+    @Override public String voiceLabel() { return assistant.voiceLabel(); }
+    @Override public void testVoice() {
+        String nome = cfg.userName == null || cfg.userName.isEmpty() ? "" : ", " + cfg.userName;
+        assistant.speak("Olá" + nome + ". Eu sou o Visão. É assim que a minha voz soa.");
+    }
     @Override public String voiceText() { return heard; }
 
     @Override
@@ -477,6 +545,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { vrToast("Reconhecimento de voz indisponível neste celular"); return; }
             if (!has(Manifest.permission.RECORD_AUDIO)) { requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_VOICE); return; }
             if (listening && speech != null) { speech.stopListening(); return; }
+            assistant.pauseNow();                     // o "ei visão" solta o microfone
+            assistant.shutUp();
             if (speech == null) {
                 speech = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
                 speech.setRecognitionListener(new android.speech.RecognitionListener() {
@@ -488,6 +558,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                     @Override public void onEvent(int t, Bundle b) { }
                     @Override public void onError(int e) {
                         listening = false;
+                        assistant.resumeSoon();
                         if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
                             vrToast("Não ouvi nada — tente de novo");
                     }
@@ -497,6 +568,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                     }
                     @Override public void onResults(Bundle b) {
                         listening = false;
+                        assistant.resumeSoon();
                         java.util.ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
                         if (r == null || r.isEmpty()) return;
                         final String text = r.get(0);
@@ -630,6 +702,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     private void beginRecording(boolean mic) {
         if (recorder != null) return;
+        if (mic) assistant.pauseNow();
         String name = "VisaoBox_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
         File f = new File(photoDir(), name);
         int[][] sizes = {{1280, 960}, {1280, 720}};           // 4:3 casa com a câmera; 16:9 de reserva
@@ -690,6 +763,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         final File f = recFile;
         if (!ok || f == null) { if (f != null) f.delete(); vrToast("A gravação foi curta demais"); return; }
         refreshFiles();
+        assistant.resumeSoon();
         io.execute(() -> publishVideo(f));
     }
 
@@ -763,7 +837,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override
     public void resetDefaults() {
+        String nome = cfg.userName;
         cfg.copyFrom(new Config());
+        cfg.userName = nome;
         vrToast("Configurações padrão restauradas");
     }
 

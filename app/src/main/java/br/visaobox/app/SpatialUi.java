@@ -35,7 +35,7 @@ final class SpatialUi {
             RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14,
             PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Voz"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
@@ -353,6 +353,14 @@ final class SpatialUi {
     boolean cinema() { return cinemaWin != null; }
 
     private void say(String s, long now) { toast = s; toastT = now; }
+    /** Resposta do Visão: aparece na tela e é falada. */
+    private void reply(String s, long now) { host.speak(s); }
+
+    private float widest(List<String> ls, float size) {
+        float w = 0;
+        for (String l : ls) w = Math.max(w, g.width(l, size, g.medium));
+        return w;
+    }
 
     void sayNow(String s) { say(s, now()); }
 
@@ -1312,41 +1320,57 @@ final class SpatialUi {
             {BOLHAS, "bolhas"}, {MUSICA, "piano", "teclas"}, {NOTAS, "notas", "bloco"}, {CONTROLE, "controle"},
             {NAVE, "nave", "jogo"}, {WEB, "sites", "web"}};
 
-    /** Executa o que a pessoa falou (ou digita, se o teclado estiver aberto). */
+    /** Executa o que a pessoa falou (ou digita, se o teclado estiver aberto). O Visão responde falando. */
     void voiceCommand(String text, long now) {
         if (text == null || text.trim().isEmpty()) return;
         if (kbOpen) { kbType(text); say("Ditado: " + text, now); return; }
-        String t = plain(text);
+        String t = plain(text).replaceAll("[,.!?]", "").replaceAll("\\s+", " ");
+        t = t.replaceFirst("^(ei |oi |hey |e )?visao ", "").trim();
+        String raw = text.trim().replaceFirst("(?i)^(ei |oi |hey |e )?vis[aã]o,? ", "").trim();
+        if (t.isEmpty() || t.equals("visao")) { reply("Sim? Estou ouvindo.", now); host.startVoice(); return; }
+        if (t.startsWith("pare de falar") || t.startsWith("silencio") || t.startsWith("cala") || t.equals("chega")) { host.speak(""); return; }
+        String chat = host.assistantChat(t);
+        if (chat != null) { reply(chat, now); return; }
         String[] go = {"abrir ", "abre ", "abra ", "mostrar ", "ir para ", "entrar no ", "entrar na "};
         for (String g0 : go) if (t.startsWith(g0)) {
             String what = t.substring(g0.length()).replaceFirst("^(o |a |os |as )", "");
             for (Object[] e : VOICE_APPS) for (int i = 1; i < e.length; i++)
-                if (what.startsWith((String) e[i])) { openApp((Integer) e[0], now); say("Abrindo " + NAMES[(Integer) e[0]], now); return; }
+                if (what.startsWith((String) e[i])) { openApp((Integer) e[0], now); reply("Abrindo " + NAMES[(Integer) e[0]] + ".", now); return; }
             openInNewTab(normalizeUrl(what.replace(" ponto ", ".").replace(" ", "")), now);
+            reply("Abrindo " + what + ".", now);
             return;
         }
-        String[] search = {"pesquisar ", "pesquise ", "procurar ", "procure ", "buscar ", "busque ", "tocar ", "toque ", "assistir "};
+        String[] search = {"pesquisar ", "pesquise ", "pesquisa ", "procurar ", "procure ", "buscar ", "busque ", "tocar ", "toque ", "toca ", "assistir ", "coloca ", "coloque "};
         for (String s0 : search) if (t.startsWith(s0)) {
-            String q = text.trim().substring(Math.min(text.trim().length(), s0.length())).trim();
-            boolean yt = t.contains("youtube") || s0.startsWith("toc") || s0.startsWith("assist");
+            String q = raw.substring(Math.min(raw.length(), s0.length())).trim();
+            boolean yt = t.contains("youtube") || s0.startsWith("toc") || s0.startsWith("assist") || s0.startsWith("coloc");
             q = q.replaceAll("(?i)\\s*(no|na) youtube\\s*$", "").replaceAll("(?i)\\s*(no|na) (google|internet)\\s*$", "");
-            if (yt) { Win y = openApp(YOUTUBE, now); if (y != null) openUrl(y, youtubeUrl(q)); }
-            else openInNewTab(normalizeUrl(q), now);
-            say("Pesquisando: " + q, now);
+            if (yt) { Win y = openApp(YOUTUBE, now); if (y != null) openUrl(y, youtubeUrl(q)); reply("Procurando " + q + " no YouTube.", now); }
+            else { openInNewTab(normalizeUrl(q), now); reply("Pesquisando " + q + ".", now); }
             return;
         }
-        if (t.startsWith("fechar tudo") || t.startsWith("feche tudo")) { for (Win w : new ArrayList<>(wins)) closeWin(w); say("Tudo fechado", now); return; }
-        if (t.startsWith("fechar") || t.startsWith("feche")) { Win w = target(); if (w != null) closeWin(w); return; }
+        if (t.startsWith("fechar tudo") || t.startsWith("feche tudo") || t.startsWith("fecha tudo")) { for (Win w : new ArrayList<>(wins)) closeWin(w); reply("Fechei tudo.", now); return; }
+        if (t.startsWith("fechar") || t.startsWith("feche") || t.startsWith("fecha")) { Win w = target(); if (w != null) { closeWin(w); reply("Fechado.", now); } return; }
         if (t.startsWith("minimizar")) { Win w = target(); if (w != null) w.minimized = true; return; }
-        if (t.contains("centraliz") || t.equals("centro")) { host.recenter(); return; }
+        if (t.contains("centraliz") || t.equals("centro")) { host.recenter(); reply("Tudo na sua frente.", now); return; }
         if (t.startsWith("sair do cinema")) { exitCinema(); return; }
-        if (t.contains("cinema")) { enterCinema(now); return; }
-        if (t.startsWith("parar") && host.isRecording()) { host.stopRecording(); say("Gravação salva", now); return; }
+        if (t.contains("cinema")) { enterCinema(now); reply("Modo cinema. Bom filme.", now); return; }
+        if (t.startsWith("parar") && host.isRecording()) { host.stopRecording(); reply("Gravação salva na galeria.", now); return; }
         if (t.contains("gravar") || t.contains("gravacao")) { if (!host.isRecording()) host.startRecording(); say("Gravando…", now); return; }
-        if (t.contains("foto")) { Bitmap fr = frame; if (fr != null) { host.savePhoto(fr); synth.shutter(); say("Foto salva", now); } return; }
+        if (t.contains("foto")) { Bitmap fr = frame; if (fr != null) { host.savePhoto(fr); synth.shutter(); reply("Foto salva.", now); } return; }
         if (t.contains("teclado")) { toggleKeyboard(now); return; }
         if (t.startsWith("voltar")) { Win w = target(); if (w != null && isWeb(w.app)) host.webBack(wid(w)); return; }
-        say("Não entendi: “" + text + "”", now);
+        if (t.contains("previsao do tempo") || t.contains("clima") || t.contains("vai chover")) {
+            openInNewTab(normalizeUrl("previsão do tempo"), now); reply("Abri a previsão do tempo para você.", now); return;
+        }
+        // perguntas: o Visão pesquisa na internet
+        String[] ask = {"o que ", "quem ", "qual ", "quais ", "quando ", "onde ", "como ", "por que ", "porque ", "quanto ", "quantos ", "quantas ", "me fala ", "me diga "};
+        for (String a0 : ask) if (t.startsWith(a0)) {
+            openInNewTab(normalizeUrl(raw), now);
+            reply("Pesquisei isso para você.", now);
+            return;
+        }
+        reply("Desculpe, não entendi: " + raw + ".", now);
     }
 
     /** Analógicos e gatilhos do controle (chegam a cada movimento). */
@@ -2624,12 +2648,28 @@ final class SpatialUi {
 
     private final LinearGradient[] iconGrad = new LinearGradient[COLS.length];
 
+    private Bitmap logo;
+    private Bitmap logo() { if (logo == null) logo = host.logo(); return logo; }
+    private long wokeUntil;
+
+    /** Ouviu "ei visão": som de chamada e o rosto do Visão aparece. */
+    void assistantWoke(long now) { synth.open(); wokeUntil = now + 6000; }
+
     void appIcon(int app, float x, float y, float r, boolean hl) {
         Canvas c = g.c;
         if (hl) g.circle(x, y + r * .12f, r * 1.32f, 0x26FFFFFF);
         RectF rr = new RectF(x - r, y - r, x + r, y + r);
         g.fill.setColor(0x33000000);
         c.drawRoundRect(new RectF(x - r, y - r + r * .16f, x + r, y + r + r * .16f), r * .5f, r * .5f, g.fill);
+        if (app == VOZ && logo() != null) {          // o Visão usa o próprio rosto como ícone
+            Path clip = new Path();
+            clip.addRoundRect(rr, r * .5f, r * .5f, Path.Direction.CW);
+            c.save();
+            c.clipPath(clip);
+            c.drawBitmap(logo, null, rr, g.bmp);
+            c.restore();
+            return;
+        }
         if (iconGrad[app] == null) iconGrad[app] = new LinearGradient(0, -1, 0, 1, COLS[app][0], COLS[app][1], Shader.TileMode.CLAMP);
         lm.setScale(1, r); lm.postTranslate(0, y);
         iconGrad[app].setLocalMatrix(lm);
@@ -2865,16 +2905,39 @@ final class SpatialUi {
             }
         }
 
-        if (host.isListening()) {
+        // ---- Visão: ouvindo ou falando ----
+        boolean lis = host.isListening();
+        String cap = host.assistantCaption();
+        if (lis || cap != null || now < wokeUntil) {
+            if (lis || cap != null) wokeUntil = Math.min(wokeUntil, now + 600);
             String vt = host.voiceText();
-            String label = vt == null || vt.isEmpty() ? "Ouvindo… fale um comando" : vt;
-            float tw = Math.min(eyeHalfW * 1.6f, g.width(label, .02f, g.medium) + .09f);
-            RectF vr = new RectF(-tw / 2, -.36f, tw / 2, -.3f);
-            g.fill.setColor(0xE6202230);
-            c.drawRoundRect(vr, .03f, .03f, g.fill);
-            float pulse = .009f + .003f * (float) Math.sin(now / 120.0);
-            g.circle(vr.left + .03f, vr.centerY(), pulse, 0xFFFF5A52);
-            g.txt(g.fit(label, .02f, tw - .07f, g.medium), vr.left + .05f, vr.centerY(), .02f, Color.WHITE, Paint.Align.LEFT, g.medium);
+            String label = lis ? (vt == null || vt.isEmpty() ? (now < wokeUntil + 4000 ? "Pode falar…" : "Ouvindo… fale um comando") : vt)
+                    : cap != null ? cap : "Pode falar…";
+            float ts0 = .019f, maxW = Math.min(eyeHalfW * 1.5f, .62f);
+            List<String> ls = wrap(label, ts0, maxW - .12f);
+            if (ls.size() > 3) { ls = new ArrayList<>(ls.subList(0, 3)); ls.set(2, g.fit(ls.get(2) + "…", ts0, maxW - .12f, g.medium)); }
+            float lh = ts0 * 1.45f * cfg.textScale;
+            float ph = Math.max(.075f, ls.size() * lh + .04f);
+            float tw = maxW;
+            tw = Math.min(maxW, Math.max(.3f, widest(ls, ts0) + .13f));
+            RectF vb = new RectF(-tw / 2, -.38f, tw / 2, -.38f + ph);
+            g.softShadow(vb, .035f);
+            g.fill.setColor(0xEB1A1416);
+            c.drawRoundRect(vb, .035f, .035f, g.fill);
+            g.stroke.setStrokeWidth(.002f); g.stroke.setColor(lis ? 0x99FF5A4A : 0x66FFB547);
+            c.drawRoundRect(vb, .035f, .035f, g.stroke);
+            float cx = vb.left + .045f, cy = vb.top + Math.min(ph / 2, .0375f), rr0 = .026f;
+            float pulse = (float) (.5 + .5 * Math.sin(now / (lis ? 140.0 : 220.0)));
+            g.circle(cx, cy, rr0 + .006f + .006f * pulse, Gfx.a(lis ? 0xFFFF5A4A : 0xFFFFB547, .35f + .3f * pulse));
+            if (logo() != null) {
+                Path clip = new Path();
+                clip.addCircle(cx, cy, rr0, Path.Direction.CW);
+                c.save(); c.clipPath(clip);
+                c.drawBitmap(logo, null, new RectF(cx - rr0, cy - rr0, cx + rr0, cy + rr0), g.bmp);
+                c.restore();
+            } else g.circle(cx, cy, rr0, 0xFFDD4F3F);
+            float ty = vb.top + .02f + lh / 2;
+            for (String l : ls) { g.txt(l, vb.left + .09f, ty, ts0, Color.WHITE, Paint.Align.LEFT, g.medium); ty += lh; }
         }
 
         // ---- mãos e ponteiros (alinhados à câmera) ----
