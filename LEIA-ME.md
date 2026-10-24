@@ -32,6 +32,17 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.0
+
+- **Navegador novo.** Cada página (abas, YouTube, Player) agora roda numa *tela virtual* de verdade do Android, do tamanho exato da janela. O navegador desenha tudo normalmente, então a rolagem não deixa mais partes brancas e não trava o app. As letras das páginas podem ser aumentadas em Ajustes → Conforto.
+- **Tela de início.** Antes de ligar o VR, você escolhe **Controle** (mais leve) ou **Mãos** (mais imersivo) e acerta os ajustes principais. A câmera e o reconhecimento de mãos só ligam depois de "Começar", por isso não trava enquanto você configura. No controle: o direcional anda, A escolhe e Start começa.
+- **Todos os ajustes dentro do óculos.** O app Ajustes tem agora as mesmas opções da engrenagem, separadas em abas: Modo, Visão, Conforto, Fundo, Janelas, Assistente e Sistema. A calibração também funciona no óculos: no controle, ← → muda a distância dos olhos, ↑ ↓ a distorção, e A ou B sai.
+- **Duas mãos.** Cada mão tem a sua pinça. Faça a pinça com as duas mãos na mesma janela e afaste-as para **aumentar** a janela, ou aproxime-as para diminuir.
+- **Fundos** (app novo): câmera, ambientes, 5 paisagens 360° prontas (Aurora, Rio na floresta, Cidade à noite, Montanhas e Fundo do mar) ou **uma foto sua** da galeria.
+- **Clima** (app novo): chuva, tempestade com raios e trovão, neve, neblina, vaga-lumes, estrelas cadentes e folhas caindo, com intensidade e som. Também funciona por voz: "fazer chover", "tempestade", "neve", "tirar o clima".
+- **Pingue-pongue** (jogo novo) contra o computador. A raquete segue a mão, a mira ou o dedo.
+- **Visão ou Jarvis.** Em Ajustes → Assistente, o nome pode ser Visão ou Jarvis. Com Jarvis, a chamada é "ei Jarvis" e o ícone muda. Como "Jarvis" não é palavra do português, a chamada dele pode errar um pouco mais que "ei Visão".
+
 ## Novidades da 5.1
 
 - **Ícone novo** do app.
@@ -81,7 +92,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 - A interface é desenhada **uma vez por quadro** com Canvas acelerado por hardware; o 3D de cada olho é feito no shader, deslocando a imagem.
 - Um shader GLSL junta câmera, recorte de pessoas, interface, cores e vinheta numa passada só.
 - A distorção da lente é feita por uma malha de vértices. A interface é desenhada com sobra de resolução para compensar o zoom da lente, e por isso fica nítida.
-- Navegador e YouTube (Android 10+): a página é desenhada pela placa de vídeo direto num buffer, em resolução cheia e com os vídeos. Em aparelhos mais antigos, ou com a opção desligada em Ajustes, a cópia é por software.
+- Navegador, YouTube e Player: cada página roda numa tela virtual. No Android 10+, os quadros chegam pela placa de vídeo sem cópia; nos mais antigos, são copiados ~15 vezes por segundo. Página parada não gasta nada.
 - O reconhecimento de mãos usa a GPU quando dá (com reserva no processador), acompanha uma mão e roda até ~20 vezes por segundo.
 - A análise da câmera reaproveita a memória a cada quadro, sem pausas para limpeza de memória.
 
@@ -97,7 +108,10 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 | `Config.java` | configurações e perfis |
 | `Gfx.java` / `Synth.java` | desenho e sons |
 | `MainActivity.java` | galeria, arquivos, permissões, teclado, controle |
-| `WebPane.java` | uma página (aba, YouTube ou Player): captura, rolagem, modo computador e arquivos de mídia |
+| `WebPane.java` | uma página (aba, YouTube ou Player) numa tela virtual: quadros, rolagem, modo computador e arquivos de mídia |
+| `SettingsModel.java` | lista única de ajustes (engrenagem, tela de início e app Ajustes) |
+| `Backdrop.java` / `Weather.java` | fundo em imagem 360° e efeitos de clima com som |
+| `Assistant.java` | assistente Visão / Jarvis: chamada por voz, fala e respostas |
 
 ## Gerar o APK
 

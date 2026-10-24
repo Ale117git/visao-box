@@ -1,64 +1,60 @@
 package br.visaobox.app;
 
 import android.content.Context;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Painel de ajustes ao lado da imagem: tudo muda na hora, então dá para ver o efeito enquanto ajusta. */
+/**
+ * Ajustes na tela do celular, em dois formatos:
+ *  - painel lateral (engrenagem), com tudo;
+ *  - tela de início (antes do VR): escolher Controle ou Mãos, ajustes rápidos e "Começar".
+ * As opções vêm do SettingsModel, as mesmas do app Ajustes dentro do óculos.
+ */
 final class SettingsPanel extends ScrollView {
 
-    interface Actions {
+    interface Actions extends SettingsModel.Env {
         void closePanel();
-        void recenter();
-        void switchCamera();
         void setCalibration(boolean on);
         boolean calibrating();
-        void saveProfile();
-        void loadProfile();
-        void resetDefaults();
-        void setPlacement(int p);
-        void setTracking(boolean on);
         void changed();
-        void assistantToggled();
-        String nextVoice();
-        String voiceLabel();
-        void testVoice();
+        void begin();             // tela de início: "Começar"
     }
-
-    interface FGet { float get(); }
-    interface FSet { void set(float v); }
-    interface BGet { boolean get(); }
-    interface BSet { void set(boolean v); }
-    interface IGet { int get(); }
-    interface ISet { void set(int v); }
-    interface Fmt { String f(float v); }
 
     private final Config cfg;
     private final Actions act;
+    private final boolean start;
     private final LinearLayout box;
+    private boolean showAll;
+    Button startBtn;
 
-    SettingsPanel(Context ctx, Config cfg, Actions act) {
+    SettingsPanel(Context ctx, Config cfg, Actions act, boolean start) {
         super(ctx);
         this.cfg = cfg;
         this.act = act;
-        setBackgroundColor(0xF0101218);
+        this.start = start;
+        setBackgroundColor(start ? 0xFF0E1320 : 0xF0101218);
         box = new LinearLayout(ctx);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(18), dp(14), dp(18), dp(28));
+        box.setPadding(dp(start ? 28 : 18), dp(14), dp(start ? 28 : 18), dp(28));
         addView(box, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         build();
     }
@@ -67,122 +63,138 @@ final class SettingsPanel extends ScrollView {
 
     void build() {
         box.removeAllViews();
-        TextView h = new TextView(getContext());
-        h.setText("Ajustes");
-        h.setTextColor(Color.WHITE);
-        h.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        h.setTypeface(Typeface.DEFAULT_BOLD);
-        box.addView(h);
-        note("As mudanças aparecem na hora na imagem ao lado.");
+        if (start) buildStart(); else buildPanel();
+    }
 
+    /* ================= painel da engrenagem ================= */
+
+    private void buildPanel() {
+        TextView h = text("Ajustes", 22, Color.WHITE, true);
+        box.addView(h);
+        note("As mudanças aparecem na hora na imagem ao lado. Todas estas opções também estão no app Ajustes, dentro do óculos.");
         LinearLayout top = hrow();
         top.addView(button(act.calibrating() ? "Sair da calibração" : "Calibrar VR box", true, () -> { act.setCalibration(!act.calibrating()); build(); }));
         top.addView(button("Recentralizar", false, act::recenter));
         top.addView(button("Fechar", false, act::closePanel));
         box.addView(top);
-
-        section("Visão (VR box)");
-        toggle("Dois olhos (VR box)", () -> cfg.stereo, v -> cfg.stereo = v);
-        slider("Distância entre os olhos (IPD)", 50, 76, .5f, () -> cfg.ipdMm, v -> cfg.ipdMm = v, v -> String.format(Locale.US, "%.1f mm", v));
-        slider("Tamanho de cada imagem", .6f, 1.1f, .01f, () -> cfg.eyeScale, v -> cfg.eyeScale = v, v -> Math.round(v * 100) + "%");
-        slider("Campo de visão", 50, 120, 1, () -> cfg.fovDeg, v -> cfg.fovDeg = v, v -> Math.round(v) + "°");
-        toggle("Correção da lente (distorção)", () -> cfg.distortion, v -> cfg.distortion = v);
-        slider("Distorção da lente", 0, .6f, .01f, () -> cfg.k1, v -> cfg.k1 = v, v -> String.format(Locale.US, "%.2f", v));
-        slider("Curvatura das bordas", 0, .4f, .01f, () -> cfg.k2, v -> cfg.k2 = v, v -> String.format(Locale.US, "%.2f", v));
-        slider("Alinhamento horizontal", -10, 10, .5f, () -> cfg.alignXmm, v -> cfg.alignXmm = v, v -> String.format(Locale.US, "%+.1f mm", v));
-        slider("Alinhamento vertical", -10, 10, .5f, () -> cfg.alignYmm, v -> cfg.alignYmm = v, v -> String.format(Locale.US, "%+.1f mm", v));
-        slider("Escurecer as bordas", 0, 1, .05f, () -> cfg.vignette, v -> cfg.vignette = v, v -> Math.round(v * 100) + "%");
-        slider("Intensidade do 3D", 0, 2, .05f, () -> cfg.stereo3d, v -> cfg.stereo3d = v, v -> Math.round(v * 100) + "%");
-        slider("Nitidez (resolução)", .5f, 1.5f, .05f, () -> cfg.resScale, v -> cfg.resScale = v, v -> Math.round(v * 100) + "%");
-        note("100% já compensa o zoom da lente. Acima disso fica ainda mais definido; abaixo, mais leve.");
-        toggle("Navegador e YouTube pela placa de vídeo (mostra vídeos)", () -> cfg.webGpu, v -> cfg.webGpu = v);
-        note("Se alguma página aparecer em branco, desligue para usar o modo compatível (vídeos podem ficar pretos nele).");
-
-        section("Conforto");
-        slider("Brilho", -.4f, .4f, .02f, () -> cfg.brightness, v -> cfg.brightness = v, v -> Math.round(v * 100) + "");
-        slider("Contraste", .5f, 1.5f, .02f, () -> cfg.contrast, v -> cfg.contrast = v, v -> Math.round(v * 100) + "%");
-        slider("Intensidade das cores", 0, 2, .05f, () -> cfg.saturation, v -> cfg.saturation = v, v -> Math.round(v * 100) + "%");
-        slider("Tamanho das janelas", .8f, 1.8f, .05f, () -> cfg.uiScale, v -> cfg.uiScale = v, v -> Math.round(v * 100) + "%");
-        slider("Tamanho do texto", 1f, 1.8f, .05f, () -> cfg.textScale, v -> cfg.textScale = v, v -> Math.round(v * 100) + "%");
-        slider("Distância mínima das janelas", .5f, 2f, .05f, () -> cfg.minDist, v -> cfg.minDist = v, v -> String.format(Locale.US, "%.2f m", v));
-        slider("Velocidade das animações", .3f, 2f, .05f, () -> cfg.animSpeed, v -> cfg.animSpeed = v, v -> Math.round(v * 100) + "%");
-        slider("Sensibilidade da cabeça", .5f, 2f, .05f, () -> cfg.headSens, v -> cfg.headSens = v, v -> Math.round(v * 100) + "%");
-        slider("Suavização do movimento", 0, 1, .05f, () -> cfg.headSmooth, v -> cfg.headSmooth = v, v -> Math.round(v * 100) + "%");
-
-        section("Fundo e câmera");
-        choice("Fundo", new String[]{"Câmera", "Grade 3D", "Escuro"}, () -> Math.min(cfg.background, 3), v -> cfg.background = v);
-        choice("Ambientes", new String[]{"Espaço", "Praia", "Pôr do sol", "Cinema"}, () -> cfg.background - 3, v -> cfg.background = v + 3);
-        slider("Brilho da câmera", -.5f, .5f, .02f, () -> cfg.camBrightness, v -> cfg.camBrightness = v, v -> Math.round(v * 100) + "");
-        slider("Contraste da câmera", .5f, 1.6f, .02f, () -> cfg.camContrast, v -> cfg.camContrast = v, v -> Math.round(v * 100) + "%");
-        slider("Opacidade da câmera", 0, 1, .05f, () -> cfg.camOpacity, v -> cfg.camOpacity = v, v -> Math.round(v * 100) + "%");
-        slider("Zoom da câmera", .6f, 2f, .05f, () -> cfg.camZoom, v -> cfg.camZoom = v, v -> Math.round(v * 100) + "%");
-        LinearLayout cr = hrow();
-        cr.addView(button("Trocar câmera", false, act::switchCamera));
-        box.addView(cr);
-        choice("Recorte de pessoas", new String[]{"Desligado", "Recorte", "Silhueta", "Contorno"}, () -> cfg.segMode, v -> cfg.segMode = v);
-        note("O recorte separa as pessoas do fundo para colocar janelas atrás delas (botão ◐ na janela). É uma aproximação visual: a câmera não mede a distância real.");
-
-        section("Janelas e interação");
-        choice("Posição das janelas", new String[]{"HUD", "Espacial", "Cinema"}, () -> cfg.placement, act::setPlacement);
-        toggle("Rastrear a cabeça (giroscópio)", () -> cfg.headTracking, act::setTracking);
-        toggle("Rastrear as mãos (pinça) — desligado deixa o app mais leve", () -> cfg.handInput, v -> cfg.handInput = v);
-        toggle("Mostrar esqueleto da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
-        toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);
-        toggle("Tocar olhando parado", () -> cfg.dwell, v -> cfg.dwell = v);
-        toggle("Navegação simplificada (alvos grandes)", () -> cfg.simple, v -> cfg.simple = v);
-        note("Controle de Xbox / Bluetooth: A confirma na mira (segurar A na barra arrasta), B volta ou cancela, X abre o menu, "
-                + "Y o teclado, LB/RB afastam ou aproximam a janela, LT segurado arrasta qualquer janela, RT também confirma, "
-                + "Start abre os Ajustes e View recentraliza. Analógico esquerdo ajusta a mira (L3 centraliza), o direito rola a página. "
-                + "O app Controle, no menu, mostra os botões ao vivo.");
-
-        toggle("Lembrar as janelas ao reabrir o app", () -> cfg.rememberLayout, v -> cfg.rememberLayout = v);
-
-        section("Assistente Visão");
-        toggle("Ouvir \"ei visão\" (usa o microfone o tempo todo, sem internet)", () -> cfg.assistant, v -> { cfg.assistant = v; act.assistantToggled(); });
-        slider("Tom da voz (menor = mais grave)", .4f, 1.3f, .02f, () -> cfg.voicePitch, v -> cfg.voicePitch = v, v -> Math.round(v * 100) + "%");
-        slider("Velocidade da fala", .5f, 1.4f, .02f, () -> cfg.voiceRate, v -> cfg.voiceRate = v, v -> Math.round(v * 100) + "%");
-        TextView vl = new TextView(getContext());
-        vl.setTextColor(0xCCFFFFFF);
-        vl.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        vl.setPadding(0, dp(8), 0, 0);
-        vl.setText(act.voiceLabel());
-        box.addView(vl);
-        LinearLayout vr0 = hrow();
-        vr0.addView(button("Trocar voz", false, () -> vl.setText(act.nextVoice())));
-        vr0.addView(button("Ouvir a voz", true, act::testVoice));
-        box.addView(vr0);
-        note("Diga \"ei visão\" e depois o pedido: \"abrir YouTube\", \"tocar Coldplay\", \"que horas são\", \"quanto é 7 vezes 8\", "
-                + "\"conta uma piada\", \"me chame de (seu nome)\", \"pare de falar\". Perguntas (\"o que é…\", \"quem foi…\") ele pesquisa na internet. "
-                + "Mais vozes: Configurações do Android → Saída de texto para voz → baixe as vozes em português do Google.");
-
-        section("Dock");
-        toggle("Dock segue a cabeça (desligado = fixo no ambiente)", () -> cfg.dockFollow, v -> cfg.dockFollow = v);
-        slider("Posição horizontal", -.45f, .45f, .01f, () -> cfg.dockX, v -> cfg.dockX = v, v -> Math.round(v * 100) + "");
-        slider("Altura", -.42f, .46f, .01f, () -> cfg.dockY, v -> cfg.dockY = v, v -> Math.round(v * 100) + "");
-        note("Você também pode arrastar o dock na própria tela: faça a pinça na barrinha embaixo dele e mova. No modo espacial ele fica parado no ambiente; Volume − traz tudo para a sua frente.");
-        slider("Largura", .7f, 1.4f, .02f, () -> cfg.dockWidth, v -> cfg.dockWidth = v, v -> Math.round(v * 100) + "%");
-        slider("Distância", .6f, 2.5f, .05f, () -> cfg.dockDist, v -> cfg.dockDist = v, v -> String.format(Locale.US, "%.2f m", v));
-        slider("Escala", .6f, 1.6f, .05f, () -> cfg.dockScale, v -> cfg.dockScale = v, v -> Math.round(v * 100) + "%");
-
-        section("Perfil");
-        LinearLayout pr = hrow();
-        pr.addView(button("Salvar perfil", true, () -> { act.saveProfile(); }));
-        pr.addView(button("Carregar perfil", false, () -> { act.loadProfile(); build(); }));
-        pr.addView(button("Restaurar padrão", false, () -> { act.resetDefaults(); build(); }));
-        box.addView(pr);
-
-        section("Limites do hardware");
-        note("Os ajustes digitais melhoram o alinhamento, mas não mudam a distância física entre as lentes, o foco nem a qualidade das lentes do VR box. "
-                + "O giroscópio mede só a rotação da cabeça, não a sua posição no espaço.");
+        for (SettingsModel.Section s : SettingsModel.build(cfg, act)) {
+            section(s.title);
+            for (SettingsModel.Item it : s.items) item(it);
+        }
     }
 
-    /* ---------------- componentes ---------------- */
+    /* ================= tela de início ================= */
+
+    private void buildStart() {
+        LinearLayout head = hrow();
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView logo = new ImageView(getContext());
+        try (InputStream in = getContext().getAssets().open(cfg.assistantName == 1 ? "jarvis_logo.png" : "visao_logo.png")) {
+            logo.setImageBitmap(BitmapFactory.decodeStream(in));
+        } catch (Exception ignored) { }
+        GradientDrawable lb = new GradientDrawable();
+        lb.setCornerRadius(dp(14));
+        logo.setBackground(lb);
+        logo.setClipToOutline(true);
+        head.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        LinearLayout tt = new LinearLayout(getContext());
+        tt.setOrientation(LinearLayout.VERTICAL);
+        tt.setPadding(dp(14), 0, 0, 0);
+        tt.addView(text("Visão Box", 26, Color.WHITE, true));
+        tt.addView(text("Escolha como vai usar e ajuste tudo antes de colocar o celular no óculos.", 13, 0xB3FFFFFF, false));
+        head.addView(tt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        startBtn = button("Começar ▶", true, act::begin);
+        startBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        startBtn.getLayoutParams().height = dp(48);
+        head.addView(startBtn);
+        box.addView(head);
+
+        section("Como você vai usar?");
+        LinearLayout cards = hrow();
+        boolean hands = cfg.handInput;
+        cards.addView(card("🎮  Controle", "Controle de Xbox ou Bluetooth. A mira fica no centro da visão: aponte com a cabeça e aperte A.",
+                "Mais leve e estável", !hands, () -> { cfg.handInput = false; cfg.twoHands = false; build(); }));
+        cards.addView(card("✋  Mãos (VR box)", "As duas mãos na frente da câmera: pinça para clicar e arrastar, e as duas juntas para ampliar janelas.",
+                "Mais imersivo, mas pesa mais e pode travar", hands, () -> { cfg.handInput = true; cfg.twoHands = true; build(); }));
+        box.addView(cards);
+
+        List<SettingsModel.Section> all = SettingsModel.build(cfg, act);
+        section("Ajustes rápidos");
+        for (SettingsModel.Section s : all) for (SettingsModel.Item it : s.items) if (it.quick) item(it);
+
+        LinearLayout more = hrow();
+        more.addView(button(showAll ? "Esconder os outros ajustes" : "Ver todos os ajustes", false, () -> { showAll = !showAll; build(); }));
+        box.addView(more);
+        if (showAll) for (SettingsModel.Section s : all) {
+            section(s.title);
+            for (SettingsModel.Item it : s.items) if (!it.quick) item(it);
+        }
+        note("Dentro do óculos, o app Ajustes (engrenagem no dock) tem todas estas opções. Para não ver esta tela ao abrir, desligue \"Mostrar a tela de início\" em Modo de uso.");
+        LinearLayout end = hrow();
+        end.addView(button("Começar ▶", true, act::begin));
+        box.addView(end);
+        startBtn.post(() -> startBtn.requestFocus());
+    }
+
+    private View card(String title, String desc, String tag, boolean sel, Runnable r) {
+        LinearLayout c = new LinearLayout(getContext());
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(dp(16), dp(14), dp(16), dp(14));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(16));
+        bg.setColor(sel ? 0x332F8CFF : 0x14FFFFFF);
+        bg.setStroke(dp(sel ? 2 : 1), sel ? 0xFF7CC4FF : 0x33FFFFFF);
+        c.setBackground(bg);
+        c.addView(text(title, 17, Color.WHITE, true));
+        TextView d = text(desc, 13, 0xCCFFFFFF, false);
+        d.setPadding(0, dp(6), 0, dp(6));
+        c.addView(d);
+        c.addView(text((sel ? "✓ Escolhido · " : "") + tag, 12, sel ? 0xFF9FD3FF : 0x99FFFFFF, true));
+        c.setFocusable(true);
+        c.setClickable(true);
+        c.setOnClickListener(v -> { r.run(); act.changed(); });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        lp.setMargins(0, 0, dp(10), 0);
+        c.setLayoutParams(lp);
+        return c;
+    }
+
+    /* ================= itens ================= */
+
+    private void item(SettingsModel.Item it) {
+        switch (it.kind) {
+            case SettingsModel.SLIDER: slider(it); break;
+            case SettingsModel.TOGGLE: toggle(it); break;
+            case SettingsModel.CHOICE: choice(it); break;
+            case SettingsModel.ACTION: {
+                TextView t = text(it.label, 14, Color.WHITE, false);
+                t.setPadding(0, dp(10), 0, 0);
+                box.addView(t);
+                LinearLayout r = hrow();
+                final Button[] holder = new Button[1];
+                holder[0] = button(it.btn.get(), false, () -> { it.run.run(); holder[0].setText(it.btn.get()); });
+                r.addView(holder[0]);
+                box.addView(r);
+                break;
+            }
+            case SettingsModel.NOTE: note(it.note); break;
+        }
+    }
 
     private LinearLayout hrow() {
         LinearLayout l = new LinearLayout(getContext());
         l.setOrientation(LinearLayout.HORIZONTAL);
         l.setPadding(0, dp(8), 0, dp(4));
         return l;
+    }
+
+    private TextView text(String s, float sp, int color, boolean bold) {
+        TextView t = new TextView(getContext());
+        t.setText(s);
+        t.setTextColor(color);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+        return t;
     }
 
     private Button button(String text, boolean primary, Runnable r) {
@@ -195,50 +207,41 @@ final class SettingsPanel extends ScrollView {
         bg.setCornerRadius(dp(18));
         bg.setColor(primary ? 0xFFBFE3FF : 0x26FFFFFF);
         b.setBackground(bg);
-        b.setPadding(dp(14), dp(6), dp(14), dp(6));
+        b.setPadding(dp(16), dp(6), dp(16), dp(6));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(38));
         lp.setMargins(0, 0, dp(8), 0);
         b.setLayoutParams(lp);
+        b.setOnFocusChangeListener((v, f) -> v.setAlpha(f ? 1f : .9f));
         b.setOnClickListener(v -> { r.run(); act.changed(); });
         return b;
     }
 
     private void section(String title) {
-        TextView t = new TextView(getContext());
-        t.setText(title.toUpperCase(new Locale("pt", "BR")));
-        t.setTextColor(0xFF7CC4FF);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        TextView t = text(title.toUpperCase(new Locale("pt", "BR")), 12, 0xFF7CC4FF, true);
         t.setLetterSpacing(.08f);
-        t.setTypeface(Typeface.DEFAULT_BOLD);
         t.setPadding(0, dp(20), 0, dp(4));
         box.addView(t);
     }
 
     private void note(String s) {
-        TextView t = new TextView(getContext());
-        t.setText(s);
-        t.setTextColor(0x99FFFFFF);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        TextView t = text(s, 12, 0x99FFFFFF, false);
         t.setPadding(0, dp(4), 0, dp(4));
         box.addView(t);
     }
 
-    private void slider(String label, float min, float max, float step, FGet get, FSet set, Fmt fmt) {
-        TextView t = new TextView(getContext());
-        t.setTextColor(Color.WHITE);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+    private void slider(SettingsModel.Item it) {
+        TextView t = text(it.label + ": " + it.fmt.f(it.fget.get()), 14, Color.WHITE, false);
         t.setPadding(0, dp(8), 0, 0);
         SeekBar sb = new SeekBar(getContext());
-        int steps = Math.max(1, Math.round((max - min) / step));
+        int steps = Math.max(1, Math.round((it.max - it.min) / it.step));
         sb.setMax(steps);
-        sb.setProgress(Math.max(0, Math.min(steps, Math.round((get.get() - min) / step))));
-        t.setText(label + ": " + fmt.f(get.get()));
+        sb.setProgress(Math.max(0, Math.min(steps, Math.round((it.fget.get() - it.min) / it.step))));
         sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean user) {
                 if (!user) return;
-                float v = min + p * step;
-                set.set(v);
-                t.setText(label + ": " + fmt.f(v));
+                float v = it.min + p * it.step;
+                it.fset.set(v);
+                t.setText(it.label + ": " + it.fmt.f(v));
             }
             @Override public void onStartTrackingTouch(SeekBar s) { }
             @Override public void onStopTrackingTouch(SeekBar s) { act.changed(); }
@@ -247,31 +250,30 @@ final class SettingsPanel extends ScrollView {
         box.addView(sb);
     }
 
-    private void toggle(String label, BGet get, BSet set) {
+    private void toggle(SettingsModel.Item it) {
         Switch s = new Switch(getContext());
-        s.setText(label);
+        s.setText(it.label);
         s.setTextColor(Color.WHITE);
         s.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         s.setPadding(0, dp(8), 0, dp(8));
-        s.setChecked(get.get());
-        s.setOnCheckedChangeListener((b, c) -> { set.set(c); act.changed(); });
+        s.setChecked(it.bget.get());
+        s.setOnCheckedChangeListener((b, c) -> { it.bset.set(c); act.changed(); });
         box.addView(s);
     }
 
-    private void choice(String label, String[] opts, IGet get, ISet set) {
-        TextView t = new TextView(getContext());
-        t.setText(label);
-        t.setTextColor(Color.WHITE);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+    private void choice(SettingsModel.Item it) {
+        TextView t = text(it.label, 14, Color.WHITE, false);
         t.setPadding(0, dp(10), 0, dp(2));
         box.addView(t);
+        HorizontalScrollView hs = new HorizontalScrollView(getContext());
+        hs.setHorizontalScrollBarEnabled(false);
         LinearLayout row = hrow();
         row.setGravity(Gravity.START);
         List<Button> bs = new ArrayList<>();
-        for (int i = 0; i < opts.length; i++) {
+        for (int i = 0; i < it.opts.length; i++) {
             final int idx = i;
             Button b = new Button(getContext());
-            b.setText(opts[i]);
+            b.setText(it.opts[i]);
             b.setAllCaps(false);
             b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(36));
@@ -281,13 +283,15 @@ final class SettingsPanel extends ScrollView {
             bs.add(b);
             row.addView(b);
             b.setOnClickListener(v -> {
-                set.set(idx);
-                paintChoice(bs, get.get());
+                it.iset.set(idx);
+                paintChoice(bs, it.iget.get());
                 act.changed();
+                if (start) build();             // a tela de início reflete a escolha (ex.: modo)
             });
         }
-        paintChoice(bs, get.get());
-        box.addView(row);
+        paintChoice(bs, it.iget.get());
+        hs.addView(row);
+        box.addView(hs);
     }
 
     private void paintChoice(List<Button> bs, int sel) {

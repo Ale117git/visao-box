@@ -64,6 +64,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private FrameLayout root;
     private SettingsPanel panel;
     private Assistant assistant;
+    private SettingsPanel startScreen;
+    private boolean started;
+    private Button gear;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -96,11 +99,11 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             @Override public void info(String msg) { vrToast(msg); }
         });
 
+        WebPane.cssWidth = cfg.webCss;
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
-        root.addView(vr, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        Button gear = new Button(this);
+        gear = new Button(this);
         gear.setText("⚙");
         gear.setTextColor(Color.WHITE);
         gear.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
@@ -111,13 +114,32 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         bg.setColor(0x99202230);
         bg.setStroke(dp(1), 0x40FFFFFF);
         gear.setBackground(bg);
-        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.END);
-        glp.setMargins(dp(10), dp(10), dp(10), dp(10));
-        root.addView(gear, glp);
         gear.setOnClickListener(v -> openSettings());
 
         setContentView(root);
         hideBars();
+
+        // tela de início: escolher Controle ou Mãos e ajustar tudo ANTES de ligar câmera e VR (assim não trava)
+        if (cfg.showStart) {
+            startScreen = new SettingsPanel(this, cfg, this, true);
+            root.addView(startScreen, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        } else begin();
+    }
+
+    /** "Começar": liga o VR, a câmera, os modelos e o assistente. */
+    @Override
+    public void begin() {
+        if (started) return;
+        started = true;
+        cfg.save(prefs, "cur_");
+        if (startScreen != null) { root.removeView(startScreen); startScreen = null; }
+        vr.calibration = false;
+        root.addView(vr, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.END);
+        glp.setMargins(dp(10), dp(10), dp(10), dp(10));
+        root.addView(gear, glp);
+        hideBars();
+        vr.onResume();
 
         cam.initModels();
         if (has(Manifest.permission.CAMERA)) { cam.start(); askWake(); }
@@ -176,8 +198,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         super.onResume();
         head.displayRotation = getWindowManager().getDefaultDisplay().getRotation();
         head.start();
-        vr.onResume();
         hideBars();
+        if (!started) return;
+        vr.onResume();
         if (cfg.assistant && has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
     }
 
@@ -186,8 +209,9 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
         assistant.stopWake();
-        if (cfg.rememberLayout) prefs.edit().putString("layout", vr.ui.layoutCache).apply();
-        vr.onPause();
+        vr.weather.stop();
+        if (started && cfg.rememberLayout) prefs.edit().putString("layout", vr.ui.layoutCache).apply();
+        if (started) vr.onPause();
         cfg.save(prefs, "cur_");
         super.onPause();
     }
@@ -206,9 +230,33 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
-        if (panel != null && panel.getParent() != null) return super.dispatchKeyEvent(e);
         int code = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+        if (startScreen != null) {
+            // tela de início pelo controle: direcional anda, A escolhe, Start começa
+            if (down && code == KeyEvent.KEYCODE_BUTTON_START) { begin(); return true; }
+            if (code == KeyEvent.KEYCODE_BUTTON_A) {
+                View f = getCurrentFocus();
+                if (down && e.getRepeatCount() == 0 && f != null) f.performClick();
+                return true;
+            }
+            return super.dispatchKeyEvent(e);
+        }
+        if (panel != null && panel.getParent() != null) return super.dispatchKeyEvent(e);
+        if (vr.calibration) {
+            // calibração dentro do óculos: ← → distância dos olhos, ↑ ↓ distorção, A ou B sai
+            if (down) switch (code) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: cfg.ipdMm = Math.max(50, cfg.ipdMm - .5f); break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: cfg.ipdMm = Math.min(76, cfg.ipdMm + .5f); break;
+                case KeyEvent.KEYCODE_DPAD_UP: cfg.k1 = Math.min(.6f, cfg.k1 + .01f); break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: cfg.k1 = Math.max(0, cfg.k1 - .01f); break;
+                case KeyEvent.KEYCODE_BUTTON_A: case KeyEvent.KEYCODE_BUTTON_B: case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_DPAD_CENTER: case KeyEvent.KEYCODE_BACK: case KeyEvent.KEYCODE_ESCAPE:
+                    vr.calibration = false; cfg.save(prefs, "cur_"); break;
+                default: return super.dispatchKeyEvent(e);
+            }
+            return true;
+        }
         if (e.getAction() == KeyEvent.ACTION_DOWN || e.getAction() == KeyEvent.ACTION_UP) {
             if (SpatialUi.handlesKey(code)) {
                 boolean dpadV = code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN;
@@ -229,7 +277,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     public boolean dispatchGenericMotionEvent(MotionEvent e) {
         boolean joy = (e.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
                 || (e.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD;
-        if (joy && e.getActionMasked() == MotionEvent.ACTION_MOVE && (panel == null || panel.getParent() == null)) {
+        if (joy && e.getActionMasked() == MotionEvent.ACTION_MOVE && started && (panel == null || panel.getParent() == null)) {
             final float lx = e.getAxisValue(MotionEvent.AXIS_X), ly = e.getAxisValue(MotionEvent.AXIS_Y);
             final float rx = e.getAxisValue(MotionEvent.AXIS_Z), ry = e.getAxisValue(MotionEvent.AXIS_RZ);
             final float lt = Math.max(e.getAxisValue(MotionEvent.AXIS_LTRIGGER), e.getAxisValue(MotionEvent.AXIS_BRAKE));
@@ -263,7 +311,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         WebPane p = panes.get(id);
         if (p == null) {
             String home = id == SpatialUi.YOUTUBE ? "https://m.youtube.com" : null;   // abas novas abrem na página inicial
-            p = new WebPane(id, this, root, main, home, id >= 100 ? this::addHistory : null);
+            p = new WebPane(id, this, main, home, id >= 100 ? this::addHistory : null);
             panes.put(id, p);
         }
         return p;
@@ -280,7 +328,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
                     WebPane p = panes.valueAt(i);
                     boolean visible = false;
                     for (int v : vis) if (v == p.id) { visible = true; break; }
-                    try { p.tick(visible, cfg.webGpu, now); } catch (Throwable ignored) { }
+                    try { p.tick(visible, now); } catch (Throwable ignored) { }
                 }
             }
             android.view.Choreographer.getInstance().postFrameCallback(this);
@@ -306,7 +354,6 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             WebPane p = panes.get(id);
             if (p == null) return;
             panes.remove(id);
-            if (p.web != null) root.removeView(p.web);
             p.destroy();
         });
     }
@@ -511,13 +558,16 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (!String.valueOf(before).equals(cfg.userName)) cfg.save(prefs, "cur_");
         return r;
     }
+    private int logoName = -1;
     @Override public Bitmap logo() {
-        if (logoBmp == null) {
-            try (InputStream in = getAssets().open("visao_logo.png")) { logoBmp = BitmapFactory.decodeStream(in); }
+        if (logoBmp == null || logoName != cfg.assistantName) {
+            logoName = cfg.assistantName;
+            try (InputStream in = getAssets().open(cfg.assistantName == 1 ? "jarvis_logo.png" : "visao_logo.png")) { logoBmp = BitmapFactory.decodeStream(in); }
             catch (Exception ignored) { }
         }
         return logoBmp;
     }
+    @Override public SettingsModel.Env settingsEnv() { return this; }
 
     private int battery() {
         try {
@@ -528,14 +578,23 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     // ---- ajustes do assistente ----
     @Override public void assistantToggled() {
-        if (cfg.assistant) { if (has(Manifest.permission.RECORD_AUDIO)) assistant.startWake(); else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_WAKE); }
-        else assistant.stopWake();
+        main.post(() -> {
+            assistant.stopWake();                      // reinicia: o nome (Visão / Jarvis) pode ter mudado
+            if (!started || !cfg.assistant) return;
+            if (has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
+            else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_WAKE);
+        });
+    }
+    @Override public void calibrate() { vr.calibration = !vr.calibration; }
+    @Override public void webSizeChanged() {
+        WebPane.cssWidth = cfg.webCss;
+        main.post(() -> { for (int i = 0; i < panes.size(); i++) panes.valueAt(i).refreshSize(); });
     }
     @Override public String nextVoice() { String n = assistant.nextVoice(); testVoice(); return n; }
     @Override public String voiceLabel() { return assistant.voiceLabel(); }
     @Override public void testVoice() {
         String nome = cfg.userName == null || cfg.userName.isEmpty() ? "" : ", " + cfg.userName;
-        assistant.speak("Olá" + nome + ". Eu sou o Visão. É assim que a minha voz soa.");
+        assistant.speak("Olá" + nome + ". Eu sou o " + cfg.assistantLabel() + ". É assim que a minha voz soa.");
     }
     @Override public String voiceText() { return heard; }
 
@@ -792,7 +851,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     @Override
     public void openSettings() {
         main.post(() -> {
-            if (panel == null) panel = new SettingsPanel(this, cfg, this);
+            if (panel == null) panel = new SettingsPanel(this, cfg, this, false);
             else panel.build();
             if (panel.getParent() == null) {
                 int w = Math.round(getResources().getDisplayMetrics().widthPixels * .48f);

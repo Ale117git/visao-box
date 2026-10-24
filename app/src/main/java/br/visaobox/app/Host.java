@@ -59,6 +59,9 @@ interface Host {
     String assistantChat(String plainText);   // resposta de conversa (ou null)
     Bitmap logo();
 
+    /** Ajustes (os mesmos do painel da engrenagem). */
+    SettingsModel.Env settingsEnv();
+
     // sistema
     void openSettings();
     void startCalibration();

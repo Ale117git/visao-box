@@ -69,6 +69,7 @@ final class CameraVision {
     private volatile HandLandmarker hand;
     private volatile ImageSegmenter seg;
     private volatile boolean handBusy, segBusy, handGpu;
+    private volatile int handsN;
     private long lastTs = 0, handSent = 0, segSent = 0;
     private int frameNo = 0, handErrors = 0;
     private BarcodeScanner qr;
@@ -128,7 +129,7 @@ final class CameraVision {
                 HandLandmarker.HandLandmarkerOptions o = HandLandmarker.HandLandmarkerOptions.builder()
                         .setBaseOptions(base)
                         .setRunningMode(RunningMode.LIVE_STREAM)
-                        .setNumHands(1)                     // uma mão: bem mais leve
+                        .setNumHands(wantHands())           // uma mão é mais leve; duas permitem ampliar janelas
                         .setMinHandDetectionConfidence(.5f)
                         .setMinHandPresenceConfidence(.5f)
                         .setMinTrackingConfidence(.5f)
@@ -136,6 +137,7 @@ final class CameraVision {
                         .setErrorListener(this::onHandError)
                         .build();
                 hand = HandLandmarker.createFromOptions(act, o);
+                handsN = wantHands();
                 handTried = true;
                 handGpu = attempt == 0;
                 handErrors = 0;
@@ -146,6 +148,8 @@ final class CameraVision {
             }
         }
     }
+
+    private int wantHands() { return cfg.twoHands ? 2 : 1; }
 
     private void onHandError(RuntimeException e) {
         handBusy = false;
@@ -354,6 +358,7 @@ final class CameraVision {
             if (segBusy && ts - segSent > 1500) segBusy = false;
 
             if (cfg.handInput && hand == null && !handTried) { handTried = true; createHand(true); }
+            if (cfg.handInput && hand != null && handsN != wantHands() && !handBusy) createHand(handGpu);   // mudou 1 ⇄ 2 mãos
             HandLandmarker hl = hand;
             if (cfg.handInput && hl != null && !handBusy && ts - handSent >= 45) {   // ~20 por segundo bastam para a pinça
                 handBusy = true; handSent = ts;

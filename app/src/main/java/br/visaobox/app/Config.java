@@ -7,8 +7,10 @@ final class Config {
 
     // ---- Modos ----
     static final int HUD = 0, ESPACIAL = 1, CINEMA = 2;
-    static final int BG_CAMERA = 0, BG_VIRTUAL = 1, BG_ESCURO = 2, BG_ESPACO = 3, BG_PRAIA = 4, BG_POR_DO_SOL = 5, BG_CINEMA = 6;
-    static final String[] BG_NAMES = {"Câmera", "Grade 3D", "Escuro", "Espaço", "Praia", "Pôr do sol", "Sala de cinema"};
+    static final int BG_CAMERA = 0, BG_VIRTUAL = 1, BG_ESCURO = 2, BG_ESPACO = 3, BG_PRAIA = 4, BG_POR_DO_SOL = 5, BG_CINEMA = 6, BG_IMAGE = 7;
+    static final String[] BG_NAMES = {"Câmera", "Grade 3D", "Escuro", "Espaço", "Praia", "Pôr do sol", "Sala de cinema", "Imagem"};
+    static final String[] WEATHER = {"Nenhum", "Chuva", "Tempestade", "Neve", "Neblina", "Vaga-lumes", "Estrelas cadentes", "Folhas caindo"};
+    static final String[] ASSIST_NAMES = {"Visão", "Jarvis"};
     static final int SEG_OFF = 0, SEG_RECORTE = 1, SEG_SILHUETA = 2, SEG_CONTORNO = 3;
 
     // ---- Ajustes ópticos ----
@@ -56,6 +58,18 @@ final class Config {
     String voiceName = "";          // voz escolhida ("" = automática)
     String userName = "";           // como o Visão chama a pessoa
 
+    // ---- Fundo em imagem e clima ----
+    String bgImage = "preset:0";    // "preset:N" = imagem pronta; senão, caminho de uma foto
+    int weather = 0;                // efeito de clima (WEATHER)
+    float weatherAmt = .6f;         // intensidade
+    boolean weatherSound = true;
+
+    // ---- Início ----
+    boolean showStart = true;       // tela de início antes do VR
+    boolean twoHands = false;       // duas mãos (pinça em cada uma, ampliar janelas)
+    float webCss = 480f;            // largura das páginas (px de CSS): menor = letras maiores
+    int assistantName = 0;          // 0 = Visão, 1 = Jarvis
+
     // ---- Dock ----
     boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
     float dockX = 0f, dockY = 0.30f, dockScale = 1f, dockDist = 1.2f, dockWidth = 1f;
@@ -70,6 +84,8 @@ final class Config {
         gazePointer = o.gazePointer; dwell = o.dwell; simple = o.simple; skeleton = o.skeleton; segMode = o.segMode;
         cameraIndex = o.cameraIndex; dockFollow = o.dockFollow; dockX = o.dockX; dockY = o.dockY; dockScale = o.dockScale; dockDist = o.dockDist; dockWidth = o.dockWidth;
         assistant = o.assistant; voicePitch = o.voicePitch; voiceRate = o.voiceRate; voiceName = o.voiceName; userName = o.userName;
+        bgImage = o.bgImage; weather = o.weather; weatherAmt = o.weatherAmt; weatherSound = o.weatherSound;
+        showStart = o.showStart; twoHands = o.twoHands; webCss = o.webCss; assistantName = o.assistantName;
     }
 
     void load(SharedPreferences p, String k) {
@@ -121,6 +137,16 @@ final class Config {
         voiceRate = p.getFloat(k + "vrate", voiceRate);
         voiceName = p.getString(k + "vname", voiceName);
         userName = p.getString(k + "uname", userName);
+        bgImage = p.getString(k + "bgimg", bgImage);
+        weather = p.getInt(k + "wx", weather);
+        weatherAmt = p.getFloat(k + "wxa", weatherAmt);
+        weatherSound = p.getBoolean(k + "wxs", weatherSound);
+        showStart = p.getBoolean(k + "start", showStart);
+        twoHands = p.getBoolean(k + "hands2", twoHands);
+        webCss = p.getFloat(k + "css", webCss);
+        assistantName = p.getInt(k + "aname", assistantName);
+        if (background < 0 || background >= BG_NAMES.length) background = BG_CAMERA;
+        if (weather < 0 || weather >= WEATHER.length) weather = 0;
         if (placement == CINEMA) placement = ESPACIAL; // o cinema começa sempre desligado
     }
 
@@ -141,9 +167,13 @@ final class Config {
                 .putFloat(k + "dw", dockWidth)
                 .putBoolean(k + "asst", assistant).putFloat(k + "vpitch", voicePitch).putFloat(k + "vrate", voiceRate)
                 .putString(k + "vname", voiceName).putString(k + "uname", userName)
+                .putString(k + "bgimg", bgImage).putInt(k + "wx", weather).putFloat(k + "wxa", weatherAmt).putBoolean(k + "wxs", weatherSound)
+                .putBoolean(k + "start", showStart).putBoolean(k + "hands2", twoHands).putFloat(k + "css", webCss).putInt(k + "aname", assistantName)
                 .putBoolean(k + "exists", true)
                 .apply();
     }
+
+    String assistantLabel() { return ASSIST_NAMES[Math.max(0, Math.min(1, assistantName))]; }
 
     float uiScaleEff() { return uiScale * (simple ? 1.2f : 1f); }
     float hitScale() { return simple ? 1.5f : 1f; }

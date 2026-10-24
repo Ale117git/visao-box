@@ -173,8 +173,10 @@ final class Assistant {
         if (!wakeWanted || !cfg.assistant || wake != null || speaking || cb.micBusy()) return;
         if (model == null) { loadModel(); return; }
         try {
-            wakeRec = new org.vosk.Recognizer(model, 16000f,
-                    "[\"ei visão\", \"oi visão\", \"hey visão\", \"visão\", \"[unk]\"]");
+            // "Jarvis" não existe no vocabulário em português: para ele o reconhecimento é livre
+            // e aceitamos as formas parecidas que o modelo costuma escrever (jarbas, javis…)
+            if (cfg.assistantName == 1) wakeRec = new org.vosk.Recognizer(model, 16000f);
+            else wakeRec = new org.vosk.Recognizer(model, 16000f, "[\"ei visão\", \"oi visão\", \"hey visão\", \"visão\", \"[unk]\"]");
             wake = new org.vosk.android.SpeechService(wakeRec, 16000f);
             wake.startListening(listener);
         } catch (Throwable t) {
@@ -203,7 +205,8 @@ final class Assistant {
     private void check(String json, String key) {
         String t;
         try { t = new JSONObject(json).optString(key, ""); } catch (Exception e) { return; }
-        if (!(t.contains("visão") || t.contains("visao"))) return;
+        boolean hit = cfg.assistantName == 1 ? JARVIS.matcher(t).find() : (t.contains("visão") || t.contains("visao"));
+        if (!hit) return;
         long now = System.currentTimeMillis();
         if (now - lastWake < 1500) return;
         lastWake = now;
@@ -284,6 +287,9 @@ final class Assistant {
 
     /* ================= conversa ================= */
 
+    private static final java.util.regex.Pattern JARVIS = java.util.regex.Pattern.compile(
+            "\\b(jarvis|jarbas|jarvas|jarves|javis|jarvi|garvis|jarbs)\\b|\\b(ei|oi|hey) (já vi|jarra|chaves|jardins)\\b");
+
     private static final Random RND = new Random();
     private static final String[] PIADAS = {
             "Por que o computador foi ao médico? Porque estava com vírus.",
@@ -292,7 +298,7 @@ final class Assistant {
             "Qual é o café mais perigoso do mundo? O ex-presso.",
             "O que o tomate foi fazer no banco? Tirar extrato.",
             "Qual é o animal mais antigo do mundo? A zebra, porque ainda está em preto e branco.",
-            "Sabe por que eu uso óculos? Porque eu sou a própria visão."};
+            "Sabe por que eu nunca me perco? Porque moro dentro de um óculos."};
 
     /**
      * Respostas que o Visão dá sozinho. Recebe o texto sem acentos e em minúsculas.
@@ -320,7 +326,7 @@ final class Assistant {
         if (t.contains("bateria")) return battery < 0 ? "Não consegui ler a bateria." :
                 "A bateria está em " + battery + " por cento." + (battery < 20 ? " Melhor carregar logo." : "");
         if (t.contains("quem e voce") || t.contains("seu nome") || t.contains("quem é você") || t.contains("como voce se chama"))
-            return "Eu sou o Visão, o assistente deste óculos. Posso abrir apps, pesquisar, tocar vídeos, tirar fotos e responder umas perguntas.";
+            return "Eu sou o " + cfg.assistantLabel() + ", o assistente deste óculos. Posso abrir apps, pesquisar, tocar vídeos, mudar o clima, tirar fotos e responder umas perguntas.";
         if (t.contains("o que voce faz") || t.contains("o que voce sabe") || t.equals("ajuda") || t.contains("me ajuda"))
             return "Diga, por exemplo: abrir YouTube, tocar uma música, pesquisar alguma coisa, que horas são, quanto é sete vezes oito, tirar foto, gravar ou modo cinema.";
         if (t.contains("piada")) return PIADAS[RND.nextInt(PIADAS.length)];
@@ -328,7 +334,7 @@ final class Assistant {
         if (t.startsWith("tudo bem") || t.startsWith("como voce esta") || t.startsWith("como vai"))
             return "Tudo ótimo por aqui" + nome + ". E com você?";
         if (t.equals("oi") || t.equals("ola") || t.startsWith("bom dia") || t.startsWith("boa tarde") || t.startsWith("boa noite") || t.equals("e ai"))
-            return periodo + nome + ". Em que posso ajudar?";
+            return periodo + nome + (cfg.assistantName == 1 ? ". Às suas ordens." : ". Em que posso ajudar?");
         if (t.contains("eu te amo")) return "Eu sou só um programa, mas fico feliz em ajudar você.";
         String conta = calc(t);
         if (conta != null) return conta;

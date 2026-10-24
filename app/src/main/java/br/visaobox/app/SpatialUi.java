@@ -33,18 +33,18 @@ final class SpatialUi {
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
             RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14,
-            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18;
+            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18, FUNDOS = 19, CLIMA = 20, PINGUE = 21;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão", "Fundos", "Clima", "Pingue-pongue"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}};
-    static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {.96f, .74f}, {.72f, .52f}, {.72f, .48f},
-            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}, {0xFF9AD8FF, 0xFF5B4BDB}, {0xFF9FB6CC, 0xFF3D5470}, {0xFFFF8F5C, 0xFF2E7D5B}};
+    static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {1.12f, .8f}, {.72f, .52f}, {.72f, .48f},
+            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}, {.92f, .64f}, {.8f, .56f}, {.86f, .62f}};
     static final int[] DOCK = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, VOZ, AJUSTES, MENU};
     static final int[] MENU_APPS = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO,
-            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, CINEMA, VOZ};
+            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, PINGUE, FUNDOS, CLIMA, CINEMA, VOZ};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
             {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"},
@@ -86,6 +86,9 @@ final class SpatialUi {
         final ArrayList<float[]> shots = new ArrayList<>(), rocks = new ArrayList<>();
         // presa a um QR code
         boolean pinned; float pinDX, pinDY, pinScale;
+        // pingue-pongue
+        float bx, by, bz, bvx, bvy, bvz, aiX, padX = Float.NaN, padY, padVX; int ps, as, rally, lastHit; boolean ppOver, ppLive; float ppWait = 1.2f;
+        boolean bounced;
     }
     static final class Btn {
         final String id; final boolean circle; float x, y, r; RectF rect;
@@ -188,6 +191,8 @@ final class SpatialUi {
     private List<Row> rows;
     String status = "";
     String camLabel = "";
+    Backdrop backdrop;
+    private List<SettingsModel.Section> model;
 
     SpatialUi(Config cfg, Host host, Gfx g) {
         this.cfg = cfg; this.host = host; this.g = g;
@@ -391,6 +396,7 @@ final class SpatialUi {
         Win w = find(app);
         if (app == VOZ) { host.startVoice(); return null; }
         if (app == MIDIA) host.loadMedia();
+        if (app == FUNDOS && host.galleryAllowed()) host.galleryItems();
         if (w != null) { w.minimized = false; toFront(w); if (isWeb(app)) host.webOpen(wid(w)); return w; }
         int k = 0;
         for (Win o : wins) if (!o.minimized) k++;
@@ -835,6 +841,8 @@ final class SpatialUi {
                 float[] l = local(w, p.x, p.y);
                 if (w.app == DESENHO) {
                     Stroke s = new Stroke(); s.c = w.pen; s.pts.add(l); w.strokes.add(s);
+                } else if (w.app == PINGUE) {
+                    if (w.ppOver) pongReset(w);
                 } else if (w.app == NAVE) {
                     RectF C = parts(w).content;
                     w.shipTarget = Gfx.clamp((l[0] - C.centerX()) / C.width(), -.45f, .45f);
@@ -963,8 +971,8 @@ final class SpatialUi {
         if (p.resize != null) {
             Win w = p.resize;
             float[] l = local(w, p.x, p.y);
-            w.w = Gfx.clamp(2 * Math.abs(l[0]), .4f, 1.7f);
-            w.h = Gfx.clamp(2 * Math.abs(l[1]), .28f, 1.1f);
+            w.w = Gfx.clamp(2 * Math.abs(l[0]), .4f, 2.4f);
+            w.h = Gfx.clamp(2 * Math.abs(l[1]), .28f, 1.5f);
             return;
         }
         if (p.hit != null && p.hit.type == H_AREA && wins.contains(p.hit.win)) {
@@ -1030,9 +1038,25 @@ final class SpatialUi {
     void updateHands(float[][] raw, long stamp, float x0, float dw, float y0, float dh, long now) {
         if (stamp == lastStamp) return;
         lastStamp = stamp;
-        for (int i = 0; i < raw.length && i < 2; i++) {
+        int nraw = Math.min(2, raw.length);
+        int[] slot = {0, 1};
+        boolean a0 = handActive(0, now), a1 = handActive(1, now);
+        if (nraw == 2 && a0 && a1) {
+            float keep = dist2(raw[0], hands[0], x0, dw, y0, dh) + dist2(raw[1], hands[1], x0, dw, y0, dh);
+            float swap = dist2(raw[0], hands[1], x0, dw, y0, dh) + dist2(raw[1], hands[0], x0, dw, y0, dh);
+            if (swap < keep) { slot[0] = 1; slot[1] = 0; }
+        } else if (nraw == 2 && (a0 != a1)) {
+            int act = a0 ? 0 : 1;
+            boolean firstIsAct = dist2(raw[0], hands[act], x0, dw, y0, dh) <= dist2(raw[1], hands[act], x0, dw, y0, dh);
+            slot[0] = firstIsAct ? act : 1 - act; slot[1] = 1 - slot[0];
+        } else if (nraw == 1) {
+            if (a0 && a1) slot[0] = dist2(raw[0], hands[0], x0, dw, y0, dh) <= dist2(raw[0], hands[1], x0, dw, y0, dh) ? 0 : 1;
+            else slot[0] = a1 ? 1 : 0;
+        }
+        for (int ri = 0; ri < nraw; ri++) {
+            int i = slot[ri];
             Hand h = hands[i];
-            float[] r = raw[i];
+            float[] r = raw[ri];
             boolean snap = !handActive(i, now);
             for (int j = 0; j < 21; j++) {
                 float tx = x0 + r[2 * j] * dw, ty = y0 + r[2 * j + 1] * dh;
@@ -1047,6 +1071,12 @@ final class SpatialUi {
             if (h.down ? ratio > .45f : ratio < .28f) h.down = !h.down;
             h.cx = (h.x[4] + h.x[8]) / 2; h.cy = (h.y[4] + h.y[8]) / 2;
         }
+    }
+
+    /** Distância (ao quadrado) entre o pulso detectado e o pulso de uma mão já acompanhada. */
+    private static float dist2(float[] r, Hand h, float x0, float dw, float y0, float dh) {
+        float dx = x0 + r[0] * dw - h.x[0], dy = y0 + r[1] * dh - h.y[0];
+        return dx * dx + dy * dy;
     }
 
     boolean handActive(int i, long now) { return cfg.handInput && hands[i].init && now - hands[i].last < 300; }
@@ -1318,16 +1348,17 @@ final class SpatialUi {
             {GALERIA, "galeria", "fotos"}, {CAMERA, "camera"}, {AJUSTES, "ajustes", "configuracoes", "configuracao"},
             {ARQUIVOS, "arquivos"}, {MENU, "menu", "aplicativos", "apps"}, {RELOGIO, "relogio", "hora"}, {DESENHO, "desenho"},
             {BOLHAS, "bolhas"}, {MUSICA, "piano", "teclas"}, {NOTAS, "notas", "bloco"}, {CONTROLE, "controle"},
-            {NAVE, "nave", "jogo"}, {WEB, "sites", "web"}};
+            {NAVE, "nave", "jogo da nave"}, {PINGUE, "pingue", "ping", "tenis de mesa", "jogo"}, {FUNDOS, "fundos", "fundo"},
+            {CLIMA, "clima", "ambiente"}, {WEB, "sites", "web"}};
 
     /** Executa o que a pessoa falou (ou digita, se o teclado estiver aberto). O Visão responde falando. */
     void voiceCommand(String text, long now) {
         if (text == null || text.trim().isEmpty()) return;
         if (kbOpen) { kbType(text); say("Ditado: " + text, now); return; }
         String t = plain(text).replaceAll("[,.!?]", "").replaceAll("\\s+", " ");
-        t = t.replaceFirst("^(ei |oi |hey |e )?visao ", "").trim();
-        String raw = text.trim().replaceFirst("(?i)^(ei |oi |hey |e )?vis[aã]o,? ", "").trim();
-        if (t.isEmpty() || t.equals("visao")) { reply("Sim? Estou ouvindo.", now); host.startVoice(); return; }
+        t = t.replaceFirst("^(ei |oi |hey |e )?(visao|jarvis|jarbas) ", "").trim();
+        String raw = text.trim().replaceFirst("(?i)^(ei |oi |hey |e )?(vis[aã]o|jarvis|jarbas),? ", "").trim();
+        if (t.isEmpty() || t.equals("visao") || t.equals("jarvis") || t.equals("jarbas")) { reply("Sim? Estou ouvindo.", now); host.startVoice(); return; }
         if (t.startsWith("pare de falar") || t.startsWith("silencio") || t.startsWith("cala") || t.equals("chega")) { host.speak(""); return; }
         String chat = host.assistantChat(t);
         if (chat != null) { reply(chat, now); return; }
@@ -1360,10 +1391,22 @@ final class SpatialUi {
         if (t.contains("foto")) { Bitmap fr = frame; if (fr != null) { host.savePhoto(fr); synth.shutter(); reply("Foto salva.", now); } return; }
         if (t.contains("teclado")) { toggleKeyboard(now); return; }
         if (t.startsWith("voltar")) { Win w = target(); if (w != null && isWeb(w.app)) host.webBack(wid(w)); return; }
-        if (t.contains("previsao do tempo") || t.contains("clima") || t.contains("vai chover")) {
+        if (t.contains("previsao do tempo") || t.contains("como esta o clima") || t.contains("vai chover")) {
             openInNewTab(normalizeUrl("previsão do tempo"), now); reply("Abri a previsão do tempo para você.", now); return;
         }
-        // perguntas: o Visão pesquisa na internet
+        // clima: "fazer chover", "tempestade", "neve", "tirar o clima"…
+        if (t.contains("sem clima") || t.contains("tirar o clima") || t.contains("tira o clima") || t.contains("desligar o clima")
+                || t.contains("parar a chuva") || t.contains("para a chuva") || t.contains("parar de chover")) {
+            cfg.weather = 0; host.configChanged(); reply("Pronto, céu limpo.", now); return;
+        }
+        String[][] wx = {{"tempestade", "2"}, {"trovao", "2"}, {"chover", "1"}, {"chuva", "1"}, {"neve", "3"}, {"nevar", "3"},
+                {"neblina", "4"}, {"nevoa", "4"}, {"vaga", "5"}, {"estrela", "6"}, {"meteoro", "6"}, {"folha", "7"}, {"outono", "7"}};
+        for (String[] e : wx) if (t.contains(e[0])) {
+            cfg.weather = Integer.parseInt(e[1]); host.configChanged();
+            reply("Pronto: " + Config.WEATHER[cfg.weather].toLowerCase(new Locale("pt", "BR")) + ".", now);
+            return;
+        }
+        // perguntas: o assistente pesquisa na internet
         String[] ask = {"o que ", "quem ", "qual ", "quais ", "quando ", "onde ", "como ", "por que ", "porque ", "quanto ", "quantos ", "quantas ", "me fala ", "me diga "};
         for (String a0 : ask) if (t.startsWith(a0)) {
             openInNewTab(normalizeUrl(raw), now);
@@ -1535,6 +1578,9 @@ final class SpatialUi {
         if (tLatch.down) tips.add(toSpatial(tX, tY));
         for (Win w : new ArrayList<>(wins)) if (w.app == BOLHAS && w.visible) updateBubbles(w, parts(w), dt, tips);
         for (Win w : wins) if (w.app == NAVE && w.visible) updateGame(w, dt, now);
+        for (Win w : wins) if (w.app == PINGUE && w.visible && !w.minimized) updatePong(w, dt);
+        updateTwoHand(now);
+        NAMES[VOZ] = cfg.assistantLabel();
         if (now - lastLayoutSave > 2000) { lastLayoutSave = now; layoutCache = layoutString(); }
     }
 
@@ -1546,7 +1592,7 @@ final class SpatialUi {
     }
 
     private RectF area(Win w, Parts P) {
-        if (w.app == DESENHO || w.app == NAVE) return P.content;
+        if (w.app == DESENHO || w.app == NAVE || w.app == PINGUE) return P.content;
         if (isWeb(w.app)) return navArea(w, P);
         return null;
     }
@@ -1670,23 +1716,9 @@ final class SpatialUi {
                 }
                 break;
             }
-            case AJUSTES: {
-                List<Row> rs = rows();
-                int perCol = (rs.size() + 1) / 2;
-                float gap = .012f, colW = (C.width() - gap) / 2, rh = (C.height() - gap * (perCol - 1)) / perCol;
-                for (int i = 0; i < rs.size(); i++) {
-                    Row r = rs.get(i);
-                    float x = C.left + (i / perCol) * (colW + gap), y = C.top + (i % perCol) * (rh + gap);
-                    float cy = y + rh / 2, right = x + colW - .012f;
-                    if (r.kind == Row.CYCLE || r.kind == Row.STEP) {
-                        out.add(new Btn("r" + i + "m", right - .068f, cy, .017f));
-                        out.add(new Btn("r" + i + "p", right - .018f, cy, .017f));
-                    } else {
-                        out.add(new Btn("r" + i + "t", new RectF(right - .13f, cy - .018f, right, cy + .018f)));
-                    }
-                }
-                break;
-            }
+            case AJUSTES: settingsButtons(w, P, out); break;
+            case FUNDOS: backdropButtons(w, P, out); break;
+            case CLIMA: weatherButtons(w, P, out); break;
             case CAMERA:
                 out.add(new Btn("shot", C.right - .05f, C.centerY() - .05f, .032f));
                 out.add(new Btn("rec", C.right - .05f, C.centerY() + .045f, .028f));
@@ -1789,15 +1821,9 @@ final class SpatialUi {
             case MENU:
                 if (id.startsWith("m")) openApp(MENU_APPS[Integer.parseInt(id.substring(1))], now);
                 break;
-            case AJUSTES: {
-                int i = Integer.parseInt(id.substring(1, id.length() - 1));
-                char k = id.charAt(id.length() - 1);
-                Row r = rows().get(i);
-                if (k == 'm' && r.minus != null) r.minus.run();
-                else if (r.plus != null) r.plus.run();
-                host.configChanged();
-                break;
-            }
+            case AJUSTES: settingsPress(w, id, now); break;
+            case FUNDOS: backdropPress(w, id, now); break;
+            case CLIMA: weatherPress(w, id, now); break;
             case CAMERA:
                 if (id.equals("shot")) {
                     Bitmap fr = frame;
@@ -1866,49 +1892,6 @@ final class SpatialUi {
         if (w == null) { w = openApp(NAV, now); if (w != null) openUrl(w, url); return; }
         openApp(NAV, now);
         if (host.webIsHome(wid(w))) openUrl(w, url); else newTab(w, url);
-    }
-
-    private List<Row> rows() {
-        if (rows != null) return rows;
-        final String[] place = {"HUD", "Espacial", "Cinema"};
-        final String[] bg = Config.BG_NAMES;
-        final String[] seg = {"Desligado", "Recorte", "Silhueta", "Contorno"};
-        ArrayList<Row> r = new ArrayList<>();
-        r.add(new Row("Posição das janelas", Row.CYCLE, () -> place[cfg.placement],
-                () -> setPlacement((cfg.placement + 2) % 3, now()), () -> setPlacement((cfg.placement + 1) % 3, now())));
-        r.add(new Row("Fundo", Row.CYCLE, () -> bg[cfg.background],
-                () -> cfg.background = (cfg.background + bg.length - 1) % bg.length, () -> cfg.background = (cfg.background + 1) % bg.length));
-        r.add(new Row("Rastrear a cabeça", Row.TOGGLE, () -> cfg.headTracking ? "Ligado" : "Desligado",
-                null, () -> setTracking(!cfg.headTracking, now())));
-        r.add(new Row("Centro da visão", Row.ACTION, () -> "Recentralizar", null, () -> host.recenter()));
-        r.add(new Row("Dock", Row.TOGGLE, () -> cfg.dockFollow ? "Segue a cabeça" : "Fixo no ambiente",
-                null, () -> cfg.dockFollow = !cfg.dockFollow));
-        r.add(new Row("Recorte de pessoas", Row.CYCLE, () -> seg[cfg.segMode],
-                () -> cfg.segMode = (cfg.segMode + 3) % 4, () -> cfg.segMode = (cfg.segMode + 1) % 4));
-        r.add(new Row("Ponteiro central", Row.TOGGLE, () -> cfg.gazePointer ? "Ligado" : "Desligado",
-                null, () -> { cfg.gazePointer = !cfg.gazePointer; gazeForced = false; }));
-        r.add(new Row("Tocar olhando parado", Row.TOGGLE, () -> cfg.dwell ? "Ligado" : "Desligado",
-                null, () -> cfg.dwell = !cfg.dwell));
-        r.add(new Row("Navegação simplificada", Row.TOGGLE, () -> cfg.simple ? "Ligada" : "Desligada",
-                null, () -> cfg.simple = !cfg.simple));
-        r.add(new Row("Vídeos no navegador", Row.TOGGLE, () -> cfg.webGpu ? "Ligado" : "Desligado",
-                null, () -> cfg.webGpu = !cfg.webGpu));
-        r.add(new Row("Rastrear as mãos", Row.TOGGLE, () -> cfg.handInput ? "Ligado" : "Desligado",
-                null, () -> cfg.handInput = !cfg.handInput));
-        r.add(new Row("Distância dos olhos (IPD)", Row.STEP, () -> Math.round(cfg.ipdMm) + " mm",
-                () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm - 1, 50, 76), () -> cfg.ipdMm = Gfx.clamp(cfg.ipdMm + 1, 50, 76)));
-        r.add(new Row("Distorção da lente", Row.STEP, () -> String.valueOf(Math.round(cfg.k1 * 100)),
-                () -> cfg.k1 = Gfx.clamp(cfg.k1 - .02f, 0, .6f), () -> cfg.k1 = Gfx.clamp(cfg.k1 + .02f, 0, .6f)));
-        r.add(new Row("Tamanho das janelas", Row.STEP, () -> Math.round(cfg.uiScale * 100) + "%",
-                () -> cfg.uiScale = Gfx.clamp(cfg.uiScale - .05f, .8f, 1.8f), () -> cfg.uiScale = Gfx.clamp(cfg.uiScale + .05f, .8f, 1.8f)));
-        r.add(new Row("Tamanho do texto", Row.STEP, () -> Math.round(cfg.textScale * 100) + "%",
-                () -> cfg.textScale = Gfx.clamp(cfg.textScale - .05f, 1f, 1.8f), () -> cfg.textScale = Gfx.clamp(cfg.textScale + .05f, 1f, 1.8f)));
-        r.add(new Row("Brilho da câmera", Row.STEP, () -> String.valueOf(Math.round(cfg.camBrightness * 100)),
-                () -> cfg.camBrightness = Gfx.clamp(cfg.camBrightness - .05f, -.5f, .5f),
-                () -> cfg.camBrightness = Gfx.clamp(cfg.camBrightness + .05f, -.5f, .5f)));
-        r.add(new Row("VR box", Row.ACTION, () -> "Calibrar", null, () -> host.startCalibration()));
-        rows = r;
-        return r;
     }
 
     private static long now() { return android.os.SystemClock.uptimeMillis(); }
@@ -2036,6 +2019,9 @@ final class SpatialUi {
             case NOTAS: drawNotes(w, P); break;
             case MIDIA: drawMedia(w, P); break;
             case NAVE: drawGame(w, P, now); break;
+            case PINGUE: drawPong(w, P); break;
+            case FUNDOS: drawBackdrops(w, P); break;
+            case CLIMA: drawWeatherApp(w, P); break;
             case CONTROLE: drawPad(w, P, now); break;
             default: break;
         }
@@ -2327,48 +2313,6 @@ final class SpatialUi {
         }
     }
 
-    private void drawSettings(Win w, Parts P) {
-        List<Row> rs = rows();
-        RectF C = P.content;
-        int perCol = (rs.size() + 1) / 2;
-        float gap = .012f, colW = (C.width() - gap) / 2, rh = (C.height() - gap * (perCol - 1)) / perCol;
-        for (int i = 0; i < rs.size(); i++) {
-            Row r = rs.get(i);
-            float x = C.left + (i / perCol) * (colW + gap), y = C.top + (i % perCol) * (rh + gap);
-            RectF rr = new RectF(x, y, x + colW, y + rh);
-            g.fill.setColor(0x14FFFFFF);
-            g.c.drawRoundRect(rr, .012f, .012f, g.fill);
-            float cy = rr.centerY(), right = rr.right - .012f;
-            g.txt(g.fit(r.label, .016f, colW * .52f, g.medium), rr.left + .014f, cy, .016f, 0xE6FFFFFF, Paint.Align.LEFT, g.medium);
-            if (r.kind == Row.CYCLE || r.kind == Row.STEP) {
-                g.txt(r.value.get(), right - .095f, cy, .016f, 0xFF9FD3FF, Paint.Align.RIGHT, g.medium);
-                for (int s = 0; s < 2; s++) {
-                    String id = "r" + i + (s == 0 ? "m" : "p");
-                    float bx = s == 0 ? right - .068f : right - .018f;
-                    boolean h = hov.contains("btn:" + w.id + ":" + id);
-                    g.circle(bx, cy, .017f, h ? 0xF2FFFFFF : 0x2EFFFFFF);
-                    int ic = h ? 0xFF15171E : 0xFFFFFFFF;
-                    if (r.kind == Row.STEP) {
-                        g.line(bx - .006f, cy, bx + .006f, cy, .0026f, ic);
-                        if (s == 1) g.line(bx, cy - .006f, bx, cy + .006f, .0026f, ic);
-                    } else {
-                        float d = s == 0 ? 1 : -1;
-                        g.line(bx + .003f * d, cy - .006f, bx - .003f * d, cy, .0026f, ic);
-                        g.line(bx - .003f * d, cy, bx + .003f * d, cy + .006f, .0026f, ic);
-                    }
-                }
-            } else {
-                String id = "r" + i + "t";
-                boolean h = hov.contains("btn:" + w.id + ":" + id);
-                RectF br = new RectF(right - .13f, cy - .018f, right, cy + .018f);
-                boolean on = r.kind == Row.TOGGLE && (r.value.get().startsWith("Ligad"));
-                g.fill.setColor(h ? 0xF2FFFFFF : (on ? 0xCC34C759 : 0x2EFFFFFF));
-                g.c.drawRoundRect(br, .018f, .018f, g.fill);
-                g.txt(r.value.get(), br.centerX(), cy, .015f, h ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
-            }
-        }
-    }
-
     private void drawCamera(Win w, Parts P, long now) {
         RectF C = P.content;
         RectF pr = new RectF(C.left, C.top, C.right - .115f, C.bottom);
@@ -2649,7 +2593,11 @@ final class SpatialUi {
     private final LinearGradient[] iconGrad = new LinearGradient[COLS.length];
 
     private Bitmap logo;
-    private Bitmap logo() { if (logo == null) logo = host.logo(); return logo; }
+    private int logoName = -1;
+    private Bitmap logo() {
+        if (logo == null || logoName != cfg.assistantName) { logo = host.logo(); logoName = cfg.assistantName; }
+        return logo;
+    }
     private long wokeUntil;
 
     /** Ouviu "ei visão": som de chamada e o rosto do Visão aparece. */
@@ -2762,6 +2710,23 @@ final class SpatialUi {
             case NAVE:
                 p.moveTo(0, -.6f); p.lineTo(.36f, .42f); p.lineTo(0, .22f); p.lineTo(-.36f, .42f); p.close();
                 c.drawPath(p, fl);
+                break;
+            case FUNDOS:
+                c.drawRoundRect(new RectF(-.62f, -.46f, .62f, .46f), .12f, .12f, s);
+                p.moveTo(-.5f, .36f); p.lineTo(-.14f, -.08f); p.lineTo(.08f, .16f); p.lineTo(.22f, .02f); p.lineTo(.5f, .36f); p.close();
+                c.drawPath(p, fl);
+                c.drawCircle(.26f, -.22f, .1f, fl);
+                break;
+            case CLIMA:
+                c.drawCircle(-.18f, -.12f, .24f, fl);
+                c.drawCircle(.14f, -.2f, .3f, fl);
+                c.drawRoundRect(new RectF(-.5f, -.08f, .52f, .14f), .11f, .11f, fl);
+                for (int k = 0; k < 3; k++) c.drawLine(-.26f + k * .26f, .3f, -.34f + k * .26f, .52f, s);
+                break;
+            case PINGUE:
+                c.drawCircle(-.1f, -.1f, .38f, fl);
+                c.drawLine(.16f, .16f, .46f, .46f, s);
+                c.drawCircle(.38f, -.38f, .12f, fl);
                 break;
             case VOZ:
                 c.drawRoundRect(new RectF(-.18f, -.6f, .18f, .14f), .18f, .18f, fl);
@@ -2981,5 +2946,562 @@ final class SpatialUi {
                 c.drawArc(new RectF(gx - .022f, gy - .022f, gx + .022f, gy + .022f), -90, 360 * pr, false, g.stroke);
             }
         }
+    }
+
+    /* ================= Ajustes (todas as opções, por categoria) ================= */
+
+    private List<SettingsModel.Section> model() {
+        if (model == null) model = SettingsModel.build(cfg, host.settingsEnv());
+        return model;
+    }
+
+    private static final String[] SECTION_SHORT = {"Modo", "Visão", "Conforto", "Fundo", "Janelas", "Assistente", "Sistema"};
+
+    private List<SettingsModel.Item> sectionItems(Win w) {
+        List<SettingsModel.Section> m = model();
+        w.page = Math.max(0, Math.min(m.size() - 1, w.page));
+        ArrayList<SettingsModel.Item> out = new ArrayList<>();
+        for (SettingsModel.Item it : m.get(w.page).items) if (it.kind != SettingsModel.NOTE) out.add(it);
+        return out;
+    }
+
+    private RectF settingsTab(Parts P, int i, int n) {
+        RectF C = P.content;
+        float tw = C.width() / n;
+        return new RectF(C.left + i * tw + .003f, C.top, C.left + (i + 1) * tw - .003f, C.top + .046f);
+    }
+
+    private float[] settingsGrid(Win w, Parts P, int n) {
+        RectF C = P.content;
+        int perCol = Math.max(5, (n + 1) / 2);
+        float top = C.top + .062f, gap = .008f;
+        float rh = Math.min(.08f, (C.bottom - top - gap * (perCol - 1)) / perCol);
+        float colW = (C.width() - .012f) / 2;
+        return new float[]{perCol, top, gap, rh, colW};
+    }
+
+    private void settingsButtons(Win w, Parts P, List<Btn> out) {
+        int n = model().size();
+        for (int i = 0; i < n; i++) out.add(new Btn("c" + i, settingsTab(P, i, n)));
+        List<SettingsModel.Item> items = sectionItems(w);
+        float[] gr = settingsGrid(w, P, items.size());
+        int perCol = (int) gr[0];
+        for (int i = 0; i < items.size(); i++) {
+            SettingsModel.Item it = items.get(i);
+            float x = P.content.left + (i / perCol) * (gr[4] + .012f), y = gr[1] + (i % perCol) * (gr[3] + gr[2]);
+            float cy = y + gr[3] / 2, right = x + gr[4] - .012f;
+            if (it.kind == SettingsModel.SLIDER || it.kind == SettingsModel.CHOICE) {
+                out.add(new Btn("r" + i + "m", right - .068f, cy, .017f));
+                out.add(new Btn("r" + i + "p", right - .018f, cy, .017f));
+            } else out.add(new Btn("r" + i + "t", new RectF(right - .17f, cy - .019f, right, cy + .019f)));
+        }
+    }
+
+    private void settingsPress(Win w, String id, long now) {
+        if (id.startsWith("c")) { w.page = Integer.parseInt(id.substring(1)); return; }
+        List<SettingsModel.Item> items = sectionItems(w);
+        int i = Integer.parseInt(id.substring(1, id.length() - 1));
+        if (i < 0 || i >= items.size()) return;
+        SettingsModel.Item it = items.get(i);
+        boolean minus = id.endsWith("m");
+        switch (it.kind) {
+            case SettingsModel.SLIDER: {
+                float st = it.vrStep();
+                float v = Gfx.clamp(it.fget.get() + (minus ? -st : st), it.min, it.max);
+                v = it.min + Math.round((v - it.min) / it.step) * it.step;
+                it.fset.set(Gfx.clamp(v, it.min, it.max));
+                break;
+            }
+            case SettingsModel.CHOICE: {
+                int k = it.opts.length;
+                it.iset.set(((it.iget.get() + (minus ? -1 : 1)) % k + k) % k);
+                break;
+            }
+            case SettingsModel.TOGGLE: it.bset.set(!it.bget.get()); break;
+            case SettingsModel.ACTION: it.run.run(); break;
+            default: break;
+        }
+        host.configChanged();
+    }
+
+    private void drawSettings(Win w, Parts P) {
+        List<SettingsModel.Section> m = model();
+        int n = m.size();
+        for (int i = 0; i < n; i++) {
+            RectF t = settingsTab(P, i, n);
+            boolean sel = i == w.page, h = hov.contains("btn:" + w.id + ":c" + i);
+            g.fill.setColor(sel ? 0xF2F2F4F8 : h ? 0x40FFFFFF : 0x1AFFFFFF);
+            g.c.drawRoundRect(t, .02f, .02f, g.fill);
+            String lb = i < SECTION_SHORT.length ? SECTION_SHORT[i] : m.get(i).title;
+            g.txt(g.fit(lb, .015f, t.width() - .01f, g.medium), t.centerX(), t.centerY(), .015f, sel ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+        }
+        List<SettingsModel.Item> items = sectionItems(w);
+        float[] gr = settingsGrid(w, P, items.size());
+        int perCol = (int) gr[0];
+        for (int i = 0; i < items.size(); i++) {
+            SettingsModel.Item it = items.get(i);
+            float x = P.content.left + (i / perCol) * (gr[4] + .012f), y = gr[1] + (i % perCol) * (gr[3] + gr[2]);
+            RectF rr = new RectF(x, y, x + gr[4], y + gr[3]);
+            g.fill.setColor(0x14FFFFFF);
+            g.c.drawRoundRect(rr, .012f, .012f, g.fill);
+            float cy = rr.centerY(), right = rr.right - .012f;
+            boolean wide = it.kind == SettingsModel.SLIDER || it.kind == SettingsModel.CHOICE;
+            float labelW = wide ? gr[4] - .22f : gr[4] - .21f;
+            g.txt(g.fit(it.label, .015f, labelW, g.medium), rr.left + .012f, cy, .015f, 0xE6FFFFFF, Paint.Align.LEFT, g.medium);
+            if (wide) {
+                g.txt(g.fit(it.value(), .015f, .1f, g.medium), right - .092f, cy, .015f, 0xFF9FD3FF, Paint.Align.RIGHT, g.medium);
+                for (int sgn = 0; sgn < 2; sgn++) {
+                    String bid = "r" + i + (sgn == 0 ? "m" : "p");
+                    float bx = sgn == 0 ? right - .068f : right - .018f;
+                    boolean h = hov.contains("btn:" + w.id + ":" + bid);
+                    g.circle(bx, cy, .017f, h ? 0xF2FFFFFF : 0x2EFFFFFF);
+                    int ic = h ? 0xFF15171E : 0xFFFFFFFF;
+                    if (it.kind == SettingsModel.SLIDER) {
+                        g.line(bx - .006f, cy, bx + .006f, cy, .0026f, ic);
+                        if (sgn == 1) g.line(bx, cy - .006f, bx, cy + .006f, .0026f, ic);
+                    } else {
+                        float d = sgn == 0 ? 1 : -1;
+                        g.line(bx + .003f * d, cy - .006f, bx - .003f * d, cy, .0026f, ic);
+                        g.line(bx - .003f * d, cy, bx + .003f * d, cy + .006f, .0026f, ic);
+                    }
+                }
+            } else {
+                String bid = "r" + i + "t";
+                boolean h = hov.contains("btn:" + w.id + ":" + bid);
+                RectF br = new RectF(right - .17f, cy - .019f, right, cy + .019f);
+                boolean on = it.kind == SettingsModel.TOGGLE && it.bget.get();
+                g.fill.setColor(h ? 0xF2FFFFFF : (on ? 0xCC34C759 : 0x2EFFFFFF));
+                g.c.drawRoundRect(br, .019f, .019f, g.fill);
+                g.txt(g.fit(it.value(), .014f, br.width() - .012f, g.medium), br.centerX(), cy, .014f, h ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+            }
+        }
+    }
+
+    /* ================= Fundos ================= */
+
+    private static final int[][] SCENE_COLS = {{0xFF3A4150, 0xFF1C2028}, {0xFF14244A, 0xFF060B1A}, {0xFF15171C, 0xFF050506},
+            {0xFF2A1E5C, 0xFF05020F}, {0xFF6EC6FF, 0xFFE8CF9A}, {0xFFFF9E5E, 0xFF5A2D82}, {0xFF5A1018, 0xFF14060A}};
+
+    private RectF bdTab(Parts P, int i) {
+        RectF C = P.content;
+        float tw = C.width() / 2;
+        return new RectF(C.left + i * tw + .004f, C.top, C.left + (i + 1) * tw - .004f, C.top + .046f);
+    }
+
+    private RectF bdTile(Parts P, int i, int cols, int rows, float bottomPad) {
+        RectF C = P.content;
+        float top = C.top + .06f, gap = .012f;
+        float tw = (C.width() - gap * (cols - 1)) / cols, th = (C.bottom - bottomPad - top - gap * (rows - 1)) / rows;
+        float x = C.left + (i % cols) * (tw + gap), y = top + (i / cols) * (th + gap);
+        return new RectF(x, y, x + tw, y + th);
+    }
+
+    private static final int BD_PER_PAGE = 8;
+
+    private void backdropButtons(Win w, Parts P, List<Btn> out) {
+        out.add(new Btn("t0", bdTab(P, 0)));
+        out.add(new Btn("t1", bdTab(P, 1)));
+        if (w.mediaKind == 0) {
+            for (int i = 0; i < 7 + Backdrop.PRESETS.length; i++) out.add(new Btn("b" + i, bdTile(P, i, 4, 3, 0)));
+        } else if (!host.galleryAllowed()) {
+            RectF C = P.content;
+            out.add(new Btn("perm", new RectF(C.centerX() - .14f, C.centerY() - .025f, C.centerX() + .14f, C.centerY() + .025f)));
+        } else {
+            List<Host.GalleryItem> items = host.galleryItems();
+            int start = w.page * BD_PER_PAGE;
+            for (int i = 0; i < BD_PER_PAGE && start + i < items.size(); i++) out.add(new Btn("g" + (start + i), bdTile(P, i, 4, 2, .06f)));
+            RectF C = P.content;
+            out.add(new Btn("pp", C.centerX() - .08f, C.bottom - .025f, .018f));
+            out.add(new Btn("pn", C.centerX() + .08f, C.bottom - .025f, .018f));
+        }
+    }
+
+    private void backdropPress(Win w, String id, long now) {
+        if (id.equals("t0")) { w.mediaKind = 0; return; }
+        if (id.equals("t1")) { w.mediaKind = 1; w.page = 0; return; }
+        if (id.equals("perm")) { host.requestGallery(); return; }
+        if (id.equals("pp")) { w.page = Math.max(0, w.page - 1); return; }
+        if (id.equals("pn")) { if ((w.page + 1) * BD_PER_PAGE < host.galleryItems().size()) w.page++; return; }
+        if (id.startsWith("b")) {
+            int i = Integer.parseInt(id.substring(1));
+            if (i < 7) { cfg.background = i; say("Fundo: " + Config.BG_NAMES[i], now); }
+            else { cfg.background = Config.BG_IMAGE; cfg.bgImage = "preset:" + (i - 7); say("Fundo: " + Backdrop.PRESETS[i - 7], now); }
+        } else if (id.startsWith("g")) {
+            int i = Integer.parseInt(id.substring(1));
+            List<Host.GalleryItem> items = host.galleryItems();
+            if (i < 0 || i >= items.size()) return;
+            Host.GalleryItem it = items.get(i);
+            String key = it.file != null ? it.file.getAbsolutePath() : it.uri != null ? it.uri.toString() : null;
+            if (key == null) return;
+            cfg.background = Config.BG_IMAGE; cfg.bgImage = key;
+            say("Sua foto virou o fundo", now);
+        }
+        host.configChanged();
+    }
+
+    private void drawBackdrops(Win w, Parts P) {
+        Canvas c = g.c;
+        String[] tabs = {"Prontos", "Minhas fotos"};
+        for (int i = 0; i < 2; i++) {
+            RectF t = bdTab(P, i);
+            boolean sel = w.mediaKind == i, h = hov.contains("btn:" + w.id + ":t" + i);
+            g.fill.setColor(sel ? 0xF2F2F4F8 : h ? 0x40FFFFFF : 0x1AFFFFFF);
+            c.drawRoundRect(t, .02f, .02f, g.fill);
+            g.txt(tabs[i], t.centerX(), t.centerY(), .016f, sel ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+        }
+        if (w.mediaKind == 0) {
+            for (int i = 0; i < 7 + Backdrop.PRESETS.length; i++) {
+                RectF r = bdTile(P, i, 4, 3, 0);
+                boolean sel = i < 7 ? cfg.background == i : cfg.background == Config.BG_IMAGE && ("preset:" + (i - 7)).equals(cfg.bgImage);
+                c.save();
+                g.clipRound(r, .014f);
+                Bitmap b = i < 7 ? (i == 0 ? frame : null) : backdrop != null ? backdrop.thumb(i - 7) : null;
+                if (b != null) g.cover(b, r, g.bmp);
+                else {
+                    int[] cc = SCENE_COLS[Math.min(i, SCENE_COLS.length - 1)];
+                    g.grad.setShader(new LinearGradient(0, r.top, 0, r.bottom, cc[0], cc[1], Shader.TileMode.CLAMP));
+                    c.drawRect(r, g.grad);
+                    g.grad.setShader(null);
+                    if (i == 1) for (int k = 1; k < 5; k++) g.line(r.left, r.top + r.height() * k / 5f, r.right, r.top + r.height() * k / 5f, .0012f, 0x557CC4FF);
+                    if (i == 3) for (int k = 0; k < 14; k++) g.circle(r.left + r.width() * ((k * 37) % 100) / 100f, r.top + r.height() * ((k * 53) % 100) / 100f, .0018f, 0xCCFFFFFF);
+                }
+                g.fill.setColor(0x99000000);
+                c.drawRect(r.left, r.bottom - .03f, r.right, r.bottom, g.fill);
+                String name = i < 7 ? Config.BG_NAMES[i] : Backdrop.PRESETS[i - 7];
+                g.txt(g.fit(name, .014f, r.width() - .01f, g.medium), r.centerX(), r.bottom - .015f, .014f, Color.WHITE, Paint.Align.CENTER, g.medium);
+                c.restore();
+                boolean h = hov.contains("btn:" + w.id + ":b" + i);
+                if (sel || h) {
+                    g.stroke.setColor(sel ? 0xFF7CC4FF : 0xCCFFFFFF); g.stroke.setStrokeWidth(sel ? .004f : .0025f);
+                    c.drawRoundRect(r, .014f, .014f, g.stroke);
+                }
+            }
+            return;
+        }
+        RectF C = P.content;
+        if (!host.galleryAllowed()) {
+            g.txt("Para usar suas fotos como fundo, permita o acesso às fotos.", C.centerX(), C.centerY() - .06f, .016f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
+            RectF br = new RectF(C.centerX() - .14f, C.centerY() - .025f, C.centerX() + .14f, C.centerY() + .025f);
+            boolean h = hov.contains("btn:" + w.id + ":perm");
+            g.fill.setColor(h ? 0xF2FFFFFF : 0xCC2F8CFF);
+            c.drawRoundRect(br, .025f, .025f, g.fill);
+            g.txt("Permitir acesso às fotos", br.centerX(), br.centerY(), .016f, h ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+            return;
+        }
+        List<Host.GalleryItem> items = host.galleryItems();
+        if (items.isEmpty()) {
+            g.txt("Nenhuma foto encontrada no celular", C.centerX(), C.centerY(), .017f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+            return;
+        }
+        int start = w.page * BD_PER_PAGE;
+        for (int i = 0; i < BD_PER_PAGE && start + i < items.size(); i++) {
+            Host.GalleryItem it = items.get(start + i);
+            RectF r = bdTile(P, i, 4, 2, .06f);
+            c.save();
+            g.clipRound(r, .014f);
+            g.fill.setColor(0x22FFFFFF);
+            c.drawRect(r, g.fill);
+            if (it.thumb != null) g.cover(it.thumb, r, g.bmp);
+            c.restore();
+            String key = it.file != null ? it.file.getAbsolutePath() : it.uri != null ? it.uri.toString() : "";
+            boolean sel = cfg.background == Config.BG_IMAGE && key.equals(cfg.bgImage);
+            boolean h = hov.contains("btn:" + w.id + ":g" + (start + i));
+            if (sel || h) {
+                g.stroke.setColor(sel ? 0xFF7CC4FF : 0xCCFFFFFF); g.stroke.setStrokeWidth(sel ? .004f : .0025f);
+                c.drawRoundRect(r, .014f, .014f, g.stroke);
+            }
+        }
+        int pages = (items.size() + BD_PER_PAGE - 1) / BD_PER_PAGE;
+        g.txt((w.page + 1) + " / " + pages, C.centerX(), C.bottom - .025f, .016f, 0xCCFFFFFF, Paint.Align.CENTER, g.medium);
+        for (String bid : new String[]{"pp", "pn"}) {
+            float bx = C.centerX() + (bid.equals("pp") ? -.08f : .08f), by = C.bottom - .025f;
+            boolean h = hov.contains("btn:" + w.id + ":" + bid);
+            g.circle(bx, by, .018f, h ? 0xF2FFFFFF : 0x2EFFFFFF);
+            float d = bid.equals("pp") ? 1 : -1;
+            int ic = h ? 0xFF15171E : Color.WHITE;
+            g.line(bx + .004f * d, by - .007f, bx - .004f * d, by, .0026f, ic);
+            g.line(bx - .004f * d, by, bx + .004f * d, by + .007f, .0026f, ic);
+        }
+    }
+
+    /* ================= Clima ================= */
+
+    private RectF wxTile(Parts P, int i) {
+        RectF C = P.content;
+        float gap = .012f, bottom = C.bottom - .07f;
+        float tw = (C.width() - gap * 3) / 4, th = (bottom - C.top - gap) / 2;
+        float x = C.left + (i % 4) * (tw + gap), y = C.top + (i / 4) * (th + gap);
+        return new RectF(x, y, x + tw, y + th);
+    }
+
+    private void weatherButtons(Win w, Parts P, List<Btn> out) {
+        for (int i = 0; i < Config.WEATHER.length; i++) out.add(new Btn("e" + i, wxTile(P, i)));
+        RectF C = P.content;
+        float y = C.bottom - .03f;
+        out.add(new Btn("am", C.left + .27f, y, .018f));
+        out.add(new Btn("ap", C.left + .4f, y, .018f));
+        out.add(new Btn("snd", new RectF(C.right - .2f, y - .02f, C.right, y + .02f)));
+    }
+
+    private void weatherPress(Win w, String id, long now) {
+        if (id.startsWith("e")) {
+            cfg.weather = Integer.parseInt(id.substring(1));
+            say(cfg.weather == 0 ? "Sem efeito de clima" : "Clima: " + Config.WEATHER[cfg.weather], now);
+        } else if (id.equals("am")) cfg.weatherAmt = Gfx.clamp(cfg.weatherAmt - .1f, .1f, 1f);
+        else if (id.equals("ap")) cfg.weatherAmt = Gfx.clamp(cfg.weatherAmt + .1f, .1f, 1f);
+        else if (id.equals("snd")) cfg.weatherSound = !cfg.weatherSound;
+        host.configChanged();
+    }
+
+    private void drawWeatherApp(Win w, Parts P) {
+        Canvas c = g.c;
+        int[] cols = {0xFF3A3F4A, 0xFF35577A, 0xFF2A2F45, 0xFF8FA7C0, 0xFF7D8894, 0xFF1C2A1E, 0xFF14123A, 0xFF8A4A22};
+        for (int i = 0; i < Config.WEATHER.length; i++) {
+            RectF r = wxTile(P, i);
+            boolean sel = cfg.weather == i, h = hov.contains("btn:" + w.id + ":e" + i);
+            g.fill.setColor(cols[i]);
+            c.drawRoundRect(r, .016f, .016f, g.fill);
+            float cx = r.centerX(), cy = r.centerY() - .012f, k = Math.min(r.width(), r.height()) * .22f;
+            int wc = 0xE6FFFFFF;
+            switch (i) {
+                case 0: g.ring(cx, cy, k, .003f, wc); g.line(cx - k * .7f, cy + k * .7f, cx + k * .7f, cy - k * .7f, .003f, wc); break;
+                case 1: case 2:
+                    g.circle(cx - k * .35f, cy - k * .25f, k * .45f, wc); g.circle(cx + k * .25f, cy - k * .35f, k * .55f, wc);
+                    g.fill.setColor(wc); c.drawRoundRect(new RectF(cx - k, cy - k * .2f, cx + k, cy + k * .25f), k * .2f, k * .2f, g.fill);
+                    if (i == 1) for (int q = 0; q < 3; q++) g.line(cx - k * .5f + q * k * .5f, cy + k * .5f, cx - k * .65f + q * k * .5f, cy + k * .95f, .0025f, 0xFF9FD3FF);
+                    else { g.line(cx, cy + k * .3f, cx - k * .25f, cy + k * .7f, .004f, 0xFFFFE27A); g.line(cx - k * .25f, cy + k * .7f, cx + k * .1f, cy + k * .7f, .004f, 0xFFFFE27A); g.line(cx + k * .1f, cy + k * .7f, cx - k * .15f, cy + k * 1.1f, .004f, 0xFFFFE27A); }
+                    break;
+                case 3: for (int q = 0; q < 3; q++) { double a = q * Math.PI / 3; g.line(cx - k * (float) Math.cos(a), cy - k * (float) Math.sin(a), cx + k * (float) Math.cos(a), cy + k * (float) Math.sin(a), .003f, wc); } break;
+                case 4: for (int q = 0; q < 3; q++) g.line(cx - k, cy - k * .4f + q * k * .4f, cx + k, cy - k * .4f + q * k * .4f, .004f, 0xB3FFFFFF); break;
+                case 5: for (int q = 0; q < 4; q++) g.circle(cx + (q - 1.5f) * k * .55f, cy + ((q * 7) % 3 - 1) * k * .35f, .004f, 0xFFFFF27A); break;
+                case 6: g.circle(cx + k * .5f, cy - k * .4f, .005f, wc); g.line(cx + k * .5f, cy - k * .4f, cx - k * .7f, cy + k * .3f, .0025f, 0x99FFFFFF); break;
+                case 7: g.fill.setColor(0xFFE8B23A); c.drawOval(new RectF(cx - k * .7f, cy - k * .3f, cx + k * .3f, cy + k * .2f), g.fill);
+                        g.fill.setColor(0xFFC8452B); c.drawOval(new RectF(cx - k * .1f, cy + k * .1f, cx + k * .8f, cy + k * .55f), g.fill); break;
+                default: break;
+            }
+            g.txt(g.fit(Config.WEATHER[i], .015f, r.width() - .01f, g.medium), r.centerX(), r.bottom - .02f, .015f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            if (sel || h) {
+                g.stroke.setColor(sel ? 0xFF7CC4FF : 0xCCFFFFFF); g.stroke.setStrokeWidth(sel ? .004f : .0025f);
+                c.drawRoundRect(r, .016f, .016f, g.stroke);
+            }
+        }
+        RectF C = P.content;
+        float y = C.bottom - .03f;
+        g.txt("Intensidade", C.left, y, .016f, 0xCCFFFFFF, Paint.Align.LEFT, g.medium);
+        g.txt(Math.round(cfg.weatherAmt * 100) + "%", C.left + .335f, y, .016f, 0xFF9FD3FF, Paint.Align.CENTER, g.medium);
+        for (String bid : new String[]{"am", "ap"}) {
+            float bx = C.left + (bid.equals("am") ? .27f : .4f);
+            boolean h = hov.contains("btn:" + w.id + ":" + bid);
+            g.circle(bx, y, .018f, h ? 0xF2FFFFFF : 0x2EFFFFFF);
+            int ic = h ? 0xFF15171E : Color.WHITE;
+            g.line(bx - .006f, y, bx + .006f, y, .0026f, ic);
+            if (bid.equals("ap")) g.line(bx, y - .006f, bx, y + .006f, .0026f, ic);
+        }
+        RectF sr = new RectF(C.right - .2f, y - .02f, C.right, y + .02f);
+        boolean h = hov.contains("btn:" + w.id + ":snd");
+        g.fill.setColor(h ? 0xF2FFFFFF : cfg.weatherSound ? 0xCC34C759 : 0x2EFFFFFF);
+        c.drawRoundRect(sr, .02f, .02f, g.fill);
+        g.txt(cfg.weatherSound ? "Som ligado" : "Som desligado", sr.centerX(), y, .015f, h ? 0xFF15171E : Color.WHITE, Paint.Align.CENTER, g.medium);
+    }
+
+    /* ================= Pingue-pongue ================= */
+
+    private static final float PP_G = 2.6f, PP_NET = .12f;
+
+    void pongReset(Win w) {
+        w.ps = 0; w.as = 0; w.ppOver = false; w.ppLive = false; w.ppWait = 1.2f; w.rally = 0;
+    }
+
+    private void pongServe(Win w) {
+        w.bx = (rnd.nextFloat() - .5f) * .8f; w.by = .35f; w.bz = 1f;
+        w.bvz = -(.95f + Math.min(.4f, w.as * .02f + w.ps * .02f));
+        w.bvx = (rnd.nextFloat() - .5f) * .5f;
+        float t = .75f / -w.bvz;
+        w.bvy = (PP_G / 2 * t * t - w.by) / t;
+        w.ppLive = true; w.lastHit = 2; w.rally = 0; w.bounced = false;
+    }
+
+    private void pongPoint(Win w, boolean player) {
+        if (player) w.ps++; else w.as++;
+        synth.note(player ? 4 : 0);
+        w.ppLive = false; w.ppWait = .9f;
+        if ((w.ps >= 11 || w.as >= 11) && Math.abs(w.ps - w.as) >= 2) { w.ppOver = true; w.best = Math.max(w.best, w.ps); }
+    }
+
+    // projeção da mesa dentro da janela
+    private float ppS(float z) { return 1f / (1f + 2.2f * z); }
+    private float ppX(RectF C, float x, float z) { return C.centerX() + x * ppS(z) * C.width() * .42f; }
+    private float ppY(RectF C, float y, float z) {
+        float hor = C.top + C.height() * .2f, near = C.bottom - C.height() * .1f;
+        return hor + (near - hor) * ppS(z) - y * ppS(z) * C.height() * .55f;
+    }
+
+    private void updatePong(Win w, float dt) {
+        RectF C = parts(w).content;
+        // raquete: segue o ponteiro (mão, mira ou toque) que estiver sobre a mesa
+        float[] q = null;
+        int[] order = {0, 1, 3, 2};
+        for (int i : order) {
+            Ptr p = ptrs[i];
+            if (!p.exists) continue;
+            Hit h = hitTest(p.x, p.y);
+            if (h != null && h.win == w) { q = local(w, p.x, p.y); break; }
+        }
+        if (q != null) {
+            float nx = Gfx.clamp(q[0], C.left, C.right), ny = Gfx.clamp(q[1], C.top, C.bottom);
+            if (!Float.isNaN(w.padX)) w.padVX = w.padVX * .7f + (nx - w.padX) / Math.max(.001f, dt) * .3f;
+            w.padX = nx; w.padY = ny;
+        }
+        if (w.ppOver) return;
+        if (!w.ppLive) { w.ppWait -= dt; if (w.ppWait <= 0) pongServe(w); return; }
+        float steps = Math.max(1, (float) Math.ceil(dt / .008f));
+        float h = dt / steps;
+        for (int s = 0; s < steps && w.ppLive; s++) {
+            float pz = w.bz;
+            w.bx += w.bvx * h; w.by += w.bvy * h; w.bz += w.bvz * h;
+            w.bvy -= PP_G * h;
+            // rede
+            if ((pz - .5f) * (w.bz - .5f) <= 0 && w.by < PP_NET && Math.abs(w.bx) < 1.1f) {
+                synth.pop();
+                pongPoint(w, w.lastHit == 2);
+                return;
+            }
+            // quica na mesa
+            if (w.by <= 0 && w.bvy < 0) {
+                if (Math.abs(w.bx) <= 1f && w.bz >= 0 && w.bz <= 1f) {
+                    w.by = 0; w.bvy = -w.bvy * .82f; w.bounced = true;
+                    synth.pop();
+                } else { pongPoint(w, w.lastHit == 2); return; }   // caiu fora: ponto de quem não bateu por último
+            }
+            // jogador rebate (bola chegando perto de você)
+            if (w.bvz < 0 && w.bz <= .04f && w.bz > -.12f && !Float.isNaN(w.padX)) {
+                float sx = ppX(C, w.bx, Math.max(0, w.bz)), sy = ppY(C, w.by, Math.max(0, w.bz));
+                float d = (float) Math.hypot(sx - w.padX, sy - w.padY);
+                if (d < C.height() * .13f) {
+                    float aim = (sx - w.padX) / (C.height() * .13f);
+                    w.rally++;
+                    w.bvz = Math.min(1.7f, 1.0f + w.rally * .035f);
+                    w.bvx = Gfx.clamp(aim * .7f - w.bx * .35f + w.padVX * .25f, -1.2f, 1.2f);
+                    w.bz = .04f;
+                    float t = .72f / w.bvz;
+                    w.by = Math.max(.25f, w.by);         // garante passar por cima da rede
+                    w.bvy = (PP_G / 2 * t * t - w.by) / t;
+                    w.lastHit = 1; w.bounced = false;
+                    w.score = Math.max(w.score, w.rally);
+                    synth.click();
+                }
+            }
+            if (w.bz < -.18f) { pongPoint(w, false); return; }
+            // computador
+            if (w.bvz > 0 && w.bz >= .97f) {
+                float reach = .26f - Math.min(.1f, w.ps * .006f);
+                if (Math.abs(w.aiX - w.bx) < reach && w.by < .7f) {
+                    w.bvz = -Math.min(1.6f, .95f + w.rally * .03f);
+                    w.bvx = Gfx.clamp((rnd.nextFloat() - .5f) * 1.4f - w.bx * .4f, -1.1f, 1.1f);
+                    w.bz = .97f;
+                    float t = .74f / -w.bvz;
+                    w.by = Math.max(.25f, w.by);         // garante passar por cima da rede
+                    w.bvy = (PP_G / 2 * t * t - w.by) / t;
+                    w.lastHit = 2; w.bounced = false;
+                    synth.click();
+                }
+            }
+            if (w.bz > 1.2f) { pongPoint(w, true); return; }
+        }
+        // computador anda até a bola (mais rápido conforme você pontua)
+        float target = w.bvz > 0 ? w.bx : w.bx * .3f;
+        float spd = (1.1f + Math.min(1.2f, w.ps * .08f)) * dt;
+        w.aiX += Gfx.clamp(target - w.aiX, -spd, spd);
+    }
+
+    private void drawPong(Win w, Parts P) {
+        Canvas c = g.c;
+        RectF C = P.content;
+        c.save();
+        g.clipRound(C, .016f);
+        g.grad.setShader(new LinearGradient(0, C.top, 0, C.bottom, 0xFF0E1A2E, 0xFF1D3048, Shader.TileMode.CLAMP));
+        c.drawRect(C, g.grad);
+        g.grad.setShader(null);
+        // mesa
+        Path t = new Path();
+        t.moveTo(ppX(C, -1, 0), ppY(C, 0, 0)); t.lineTo(ppX(C, 1, 0), ppY(C, 0, 0));
+        t.lineTo(ppX(C, 1, 1), ppY(C, 0, 1)); t.lineTo(ppX(C, -1, 1), ppY(C, 0, 1)); t.close();
+        g.fill.setColor(0xFF1F5FA8);
+        c.drawPath(t, g.fill);
+        g.stroke.setColor(0xE6FFFFFF); g.stroke.setStrokeWidth(.003f);
+        c.drawPath(t, g.stroke);
+        g.line(ppX(C, 0, 0), ppY(C, 0, 0), ppX(C, 0, 1), ppY(C, 0, 1), .0015f, 0x99FFFFFF);
+        // rede
+        g.fill.setColor(0x66FFFFFF);
+        c.drawRect(ppX(C, -1.08f, .5f), ppY(C, PP_NET, .5f), ppX(C, 1.08f, .5f), ppY(C, 0, .5f), g.fill);
+        g.line(ppX(C, -1.08f, .5f), ppY(C, PP_NET, .5f), ppX(C, 1.08f, .5f), ppY(C, PP_NET, .5f), .0025f, Color.WHITE);
+        // raquete do computador
+        float as = ppS(1f);
+        g.circle(ppX(C, w.aiX, 1f), ppY(C, .25f, 1f), C.height() * .1f * as, 0xFFE53935);
+        // bola e sombra
+        if (w.ppLive) {
+            float bz = Gfx.clamp(w.bz, -.2f, 1.2f), s = ppS(Math.max(0, bz));
+            if (Math.abs(w.bx) <= 1f && bz >= 0 && bz <= 1f) {
+                g.fill.setColor(0x55000000);
+                c.drawOval(new RectF(ppX(C, w.bx, bz) - C.height() * .03f * s, ppY(C, 0, bz) - C.height() * .01f * s,
+                        ppX(C, w.bx, bz) + C.height() * .03f * s, ppY(C, 0, bz) + C.height() * .01f * s), g.fill);
+            }
+            g.circle(ppX(C, w.bx, Math.max(0, bz)), ppY(C, w.by, Math.max(0, bz)), Math.max(.004f, C.height() * .028f * s), 0xFFFFF8E8);
+        }
+        // sua raquete
+        if (!Float.isNaN(w.padX)) {
+            float r = C.height() * .1f;
+            g.line(w.padX + r * .5f, w.padY + r * .5f, w.padX + r * 1.1f, w.padY + r * 1.2f, .009f, 0xCC8B5A2B);
+            g.circle(w.padX, w.padY, r, 0xB3E53935);
+            g.ring(w.padX, w.padY, r, .002f, 0xCCFFFFFF);
+        }
+        c.restore();
+        g.txt("Você " + w.ps + "  ×  " + w.as + " Computador", C.centerX(), C.top + .03f, .02f, Color.WHITE, Paint.Align.CENTER, g.medium);
+        if (w.ppOver) {
+            g.fill.setColor(0xB3000000);
+            c.drawRoundRect(new RectF(C.centerX() - .22f, C.centerY() - .07f, C.centerX() + .22f, C.centerY() + .07f), .02f, .02f, g.fill);
+            g.txt(w.ps > w.as ? "Você venceu!" : "O computador venceu", C.centerX(), C.centerY() - .02f, .026f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            g.txt("Aperte A (ou faça a pinça) para jogar de novo", C.centerX(), C.centerY() + .03f, .015f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
+        } else if (w.ps == 0 && w.as == 0 && w.rally == 0)
+            g.txt("Mova a raquete com a mão ou com a mira e encoste na bola", C.centerX(), C.bottom - .025f, .015f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
+    }
+
+    /* ================= duas mãos: ampliar a janela ================= */
+
+    private Win twoWin;
+    private float twoD0, twoW0, twoH0;
+
+    private static Win ptrWin(Ptr p) {
+        if (p.hit != null && p.hit.win != null) return p.hit.win;
+        if (p.drag != null) return p.drag;
+        return p.resize;
+    }
+
+    private static void cancelPtr(Ptr p) {
+        p.hit = null; p.drag = null; p.resize = null; p.webMode = 0; p.sbDrag = false;
+    }
+
+    /** As duas mãos fazendo pinça na mesma janela: afastar as mãos aumenta, aproximar diminui. */
+    private void updateTwoHand(long now) {
+        Ptr a = ptrs[0], b = ptrs[1];
+        boolean both = cfg.handInput && cfg.twoHands && a.exists && b.exists && a.down && b.down;
+        if (!both) { twoWin = null; return; }
+        if (twoWin == null) {
+            Win wa = ptrWin(a), wb = ptrWin(b);
+            if (wa == null || wa != wb || wa == cinemaWin || !wins.contains(wa)) return;
+            float[] la = local(wa, a.x, a.y), lb = local(wa, b.x, b.y);
+            twoWin = wa;
+            twoD0 = Math.max(.03f, (float) Math.hypot(la[0] - lb[0], la[1] - lb[1]));
+            twoW0 = wa.w; twoH0 = wa.h;
+            cancelPtr(a); cancelPtr(b);
+            synth.hover();
+        }
+        if (!wins.contains(twoWin)) { twoWin = null; return; }
+        float[] la = local(twoWin, a.x, a.y), lb = local(twoWin, b.x, b.y);
+        float k = (float) Math.hypot(la[0] - lb[0], la[1] - lb[1]) / twoD0;
+        twoWin.w = Gfx.clamp(twoW0 * k, .4f, 2.4f);
+        twoWin.h = Gfx.clamp(twoH0 * k, .28f, 1.5f);
+        hov.add("resize:" + twoWin.id);
+        if (isWeb(twoWin.app)) host.webAspect(wid(twoWin), contentAspect(twoWin));
     }
 }

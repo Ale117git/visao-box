@@ -46,6 +46,9 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     final HeadTracker head;
     final SpatialUi ui;
     private final Gfx g = new Gfx();
+    final Backdrop backdrop;
+    final Weather weather = new Weather();
+    private long weatherT;
 
     /* ---------- dados vindos de outras threads ---------- */
     public volatile Bitmap frame;                 // imagem da análise (em pé), para a janela Câmera e reserva
@@ -145,6 +148,8 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         this.cfg = cfg;
         this.head = head;
         this.ui = new SpatialUi(cfg, host, g);
+        this.backdrop = new Backdrop(ctx);
+        ui.backdrop = backdrop;
         Random r = new Random(7);
         for (float[] s : stars) {
             s[0] = (float) (r.nextFloat() * Math.PI * 2 - Math.PI);
@@ -584,6 +589,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
                 if (mode != 1) {
                     if (!camBg) drawBackground(sign);
                     else if (frame == null || now - frameSeenAt > 2500) drawNoCamera();
+                    drawWeather(now, true);
                 }
                 if (mode == 1) ui.drawWindows(sign, 1, now);
                 else {
@@ -631,6 +637,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
                     if (ui.cinema()) { g.fill.setColor(0xB3000000); c.drawRect(-2, -1, 2, 1, g.fill); }
                 }
             } else drawBackground(0);
+            drawWeather(now, false);
             ui.status = "";                              // sem a barra de status no vídeo
             ui.drawWindows(0, 0, now);
             ui.drawOverlay(0, now);
@@ -658,9 +665,28 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         g.txt("Use o fundo Virtual 3D ou Escuro em Ajustes", 0, -.02f, .018f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
+    /** Chuva, neve etc. (por cima do fundo, atrás das janelas). */
+    private void drawWeather(long now, boolean advance) {
+        if (cfg.weather == Weather.NONE && !advance) return;
+        float dt = advance ? Math.min(.05f, (now - weatherT) / 1000f) : 0;
+        if (advance) weatherT = now;
+        boolean on = cfg.headTracking && head.available && head.hasData;
+        weather.draw(g.c, calibration ? 0 : cfg.weather, cfg.weatherAmt, cfg.weatherSound, on ? sYaw : 0, ui.f, eyeW / eyeH / 2f + .05f, dt, now);
+    }
+
     private void drawBackground(int sign) {
         Canvas c = g.c;
         float hw = eyeW / eyeH / 2f + .05f;
+        if (cfg.background == Config.BG_IMAGE) {
+            boolean on = cfg.headTracking && head.available && head.hasData;
+            c.save();
+            if (on) c.rotate((float) -Math.toDegrees(sRoll));
+            boolean ok = backdrop.draw(c, cfg.bgImage, on ? sYaw : 0, on ? sPitch : 0, ui.f, hw + .3f);
+            c.restore();
+            if (ok) return;
+            g.txt("Carregando a imagem de fundo…", 0, 0, .02f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+            return;
+        }
         if (cfg.background == Config.BG_VIRTUAL) drawVirtual(sign);
         else if (cfg.background >= Config.BG_ESPACO) drawScene(cfg.background);
         else {
@@ -890,7 +916,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         g.glass(t, .02f, false, false);
         g.txt("1,5 m", s, .22f, .024f, Color.WHITE, Paint.Align.CENTER, g.medium);
         g.txt(String.format(Locale.US, "IPD %.0f mm · distorção %.2f / %.2f", cfg.ipdMm, cfg.k1, cfg.k2), 0, .36f, .017f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
-        g.txt("Ajuste até ver uma imagem só, reta e sem cortes", 0, .4f, .017f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+        g.txt("Ajuste até ver uma imagem só, reta e sem cortes · controle: ← → olhos, ↑ ↓ distorção, A ou B sai", 0, .4f, .017f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
     }
 
     /* ================= cabeça e status ================= */
