@@ -79,7 +79,9 @@ final class SettingsModel {
                 v -> { cfg.handInput = v == 1; cfg.twoHands = v == 1; }).quick = false;
         b.toggle("Rastrear as mãos (pinça)", () -> cfg.handInput, v -> cfg.handInput = v);
         b.toggle("Duas mãos (ampliar janelas com as duas)", () -> cfg.twoHands, v -> cfg.twoHands = v);
-        b.toggle("Mostrar esqueleto da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
+        b.choice("Aparência das mãos", Config.HAND_STYLES, () -> cfg.handStyle, v -> cfg.handStyle = v).quick = true;
+        b.toggle("Puxar a janela para perto com a mão", () -> cfg.handDepth, v -> cfg.handDepth = v);
+        b.toggle("Esqueleto: mostrar as linhas da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
         b.toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);
         b.toggle("Tocar olhando parado", () -> cfg.dwell, v -> cfg.dwell = v);
         b.toggle("Navegação simplificada (alvos grandes)", () -> cfg.simple, v -> cfg.simple = v);
@@ -108,8 +110,12 @@ final class SettingsModel {
         b.slider("Intensidade das cores", 0, 2, .05f, () -> cfg.saturation, v -> cfg.saturation = v, SettingsModel::pct);
         b.slider("Tamanho das janelas", .8f, 1.8f, .05f, () -> cfg.uiScale, v -> cfg.uiScale = v, SettingsModel::pct).quick = true;
         b.slider("Tamanho do texto", 1f, 1.8f, .05f, () -> cfg.textScale, v -> cfg.textScale = v, SettingsModel::pct).quick = true;
-        b.slider("Letras das páginas da internet", 360, 800, 20, () -> 1160 - cfg.webCss, v -> { cfg.webCss = 1160 - v; env.webSizeChanged(); },
-                v -> v >= 700 ? "Grandes" : v >= 560 ? "Médias" : "Pequenas");
+        b.choice("Tamanho das páginas da internet", Config.PAGE_SIZES, () -> {
+                    int best = 0;
+                    for (int i = 1; i < Config.PAGE_CSS.length; i++)
+                        if (Math.abs(Config.PAGE_CSS[i] - cfg.webCss) < Math.abs(Config.PAGE_CSS[best] - cfg.webCss)) best = i;
+                    return best;
+                }, v -> { cfg.webCss = Config.PAGE_CSS[v]; env.webSizeChanged(); }).quick = true;
         b.slider("Distância mínima das janelas", .5f, 2f, .05f, () -> cfg.minDist, v -> cfg.minDist = v, v -> String.format(Locale.US, "%.2f m", v));
         b.slider("Velocidade das animações", .3f, 2f, .05f, () -> cfg.animSpeed, v -> cfg.animSpeed = v, SettingsModel::pct);
         b.slider("Sensibilidade da cabeça", .5f, 2f, .05f, () -> cfg.headSens, v -> cfg.headSens = v, SettingsModel::pct);

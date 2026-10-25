@@ -54,7 +54,7 @@ final class WebPane {
     /** Largura de referência para a rolagem (as contas da interface usam esta medida). */
     static final int WIDTH = 960;
     /** Largura das páginas em px de CSS (menor = letras maiores). Vem dos ajustes. */
-    static volatile float cssWidth = 480f;
+    static volatile float cssWidth = 900f;
 
     interface PageListener { void onPage(int id, String title, String url); }
 
@@ -84,17 +84,20 @@ final class WebPane {
     volatile Bitmap front;
     volatile String title = "", url = "";
     volatile boolean input;
+    /** Parte útil do quadro (a página ocupa o canto de cima à esquerda da tela virtual). */
+    volatile float cropW = 1f, cropH = 1f;
     private String pending;
     private long lastFocus;
 
-    // tela virtual
+    // tela virtual (tamanho fixo; a página muda de tamanho dentro dela, sem refazer nada)
+    static final int DISP = 1280;
     private VirtualDisplay vd;
     private Presentation pres;
     private FrameLayout holder;
     private volatile ImageReader reader;
-    private int pw, ph;                  // tamanho da tela virtual em pixels
-    private float aspect = 4f / 3f;
-    private boolean rebuildQueued;
+    private int builtDpi;
+    private float aspect = 16f / 10f;
+    private boolean rebuildQueued, lost;
 
     // quadros (Android 10+: hardware; antes: cópia)
     private Image cur, prev;
@@ -120,15 +123,32 @@ final class WebPane {
     /** Toca uma página gerada aqui (player de vídeo e música). */
     void loadHtml(String html) {
         if (web == null) open();
-        web.loadDataWithBaseURL(LOCAL + "player", html, "text/html", "utf-8", null);
+        if (web != null) web.loadDataWithBaseURL(LOCAL + "player", html, "text/html", "utf-8", null);
     }
 
     /* ================= página ================= */
 
-    @SuppressLint("SetJavaScriptEnabled")
+    /**
+     * Densidade da tela virtual. A página "acha" que a tela tem cssWidth pontos de largura:
+     * 1280 px ÷ (dpi/160). Antes ela era montada como num celular pequeno (parecia com zoom);
+     * agora tem largura de tablet, e dá para ver bem mais coisas.
+     */
+    private static int dpiFor(float css) { return Math.max(80, Math.round(160f * DISP / Gfx.clamp(css, 480, 1400))); }
+
     void open() {
         if (web != null) return;
-        web = new WebView(act);
+        buildDisplay();
+        if (pres == null) return;
+        createWeb(pres.getContext());
+        String u = pending != null ? pending : homeUrl;
+        pending = null;
+        if (u != null) web.loadUrl(u);
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void createWeb(Context ctx) {
+        // criada com o "contexto" da tela virtual: assim usa a densidade dela
+        web = new WebView(ctx);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -161,10 +181,7 @@ final class WebPane {
         web.setWebChromeClient(new WebChromeClient() {
             @Override public void onReceivedTitle(WebView v, String t) { title = t == null ? "" : t; }
         });
-        main.post(() -> { if (web != null && pres == null) buildDisplay(); });   // depois do tamanho da janela chegar
-        if (pending != null) web.loadUrl(pending);
-        else if (homeUrl != null) web.loadUrl(homeUrl);
-        pending = null;
+        holder.addView(web, pageParams());
     }
 
     void load(String u) {
@@ -174,25 +191,22 @@ final class WebPane {
 
     /* ================= tela virtual ================= */
 
-    private int density() { return act.getResources().getDisplayMetrics().densityDpi; }
-
-    /** Tamanho em pixels: largura = largura CSS × densidade da tela (limitada), altura pela proporção da janela. */
-    private int[] wantedSize() {
-        float d = density() / 160f;
-        int w = Math.round(Gfx.clamp(cssWidth, 320, 1280) * d);
-        w = Math.max(640, Math.min(1600, w)) & ~1;
-        int h = Math.max(320, Math.min(2000, Math.round(w / Gfx.clamp(aspect, .5f, 3f)))) & ~1;
-        return new int[]{w, h};
+    /** Tamanho da página dentro da tela virtual, pela proporção da janela. */
+    private FrameLayout.LayoutParams pageParams() {
+        int w = DISP, h = Math.round(DISP / aspect);
+        if (h > DISP) { h = DISP; w = Math.round(DISP * aspect); }
+        w = Math.max(320, w) & ~1; h = Math.max(240, h) & ~1;
+        cropW = w / (float) DISP; cropH = h / (float) DISP;
+        return new FrameLayout.LayoutParams(w, h, android.view.Gravity.TOP | android.view.Gravity.START);
     }
 
     private void buildDisplay() {
-        int[] sz = wantedSize();
         teardownDisplay();
-        pw = sz[0]; ph = sz[1];
+        builtDpi = dpiFor(cssWidth);
         try {
-            reader = newReader(pw, ph);
+            reader = newReader(DISP, DISP);
             DisplayManager dm = (DisplayManager) act.getSystemService(Context.DISPLAY_SERVICE);
-            vd = dm.createVirtualDisplay("visaobox-pagina-" + id, pw, ph, density(), reader.getSurface(), 0);
+            vd = dm.createVirtualDisplay("visaobox-pagina-" + id, DISP, DISP, builtDpi, reader.getSurface(), 0);
             pres = new Presentation(act, vd.getDisplay());
             Window win = pres.getWindow();
             if (win != null) {
@@ -203,11 +217,10 @@ final class WebPane {
                                 | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
                 win.setBackgroundDrawable(new ColorDrawable(Color.WHITE));
             }
-            holder = new FrameLayout(act);
-            if (web.getParent() instanceof ViewGroup) ((ViewGroup) web.getParent()).removeView(web);
-            holder.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            holder = new FrameLayout(pres.getContext());
             pres.setContentView(holder);
-            pres.setOnDismissListener(d -> { if (pres == d && web != null) queueRebuild(); });
+            lost = false;
+            pres.setOnDismissListener(d -> { if (pres == d && web != null) { lost = true; queueRebuild(); } });
             pres.show();
         } catch (Throwable t) {
             teardownDisplay();
@@ -218,7 +231,6 @@ final class WebPane {
     private void teardownDisplay() {
         Presentation p = pres;
         pres = null;
-        if (holder != null && web != null && web.getParent() == holder) holder.removeView(web);
         holder = null;
         if (p != null) { try { p.dismiss(); } catch (Throwable ignored) { } }
         if (vd != null) { try { vd.release(); } catch (Throwable ignored) { } vd = null; }
@@ -232,25 +244,36 @@ final class WebPane {
         });
     }
 
+    /** Refaz tudo (página nova na mesma tela de endereço): usado ao mudar o tamanho das páginas. */
     private void queueRebuild() {
         if (rebuildQueued) return;
         rebuildQueued = true;
         main.postDelayed(() -> {
             rebuildQueued = false;
             if (web == null) return;
-            int[] sz = wantedSize();
-            if (pres == null || sz[0] != pw || sz[1] != ph) buildDisplay();
-        }, 350);                                             // espera a pessoa terminar de redimensionar
+            if (pres != null && !lost && builtDpi == dpiFor(cssWidth)) return;
+            String u = web.getUrl();
+            boolean wasHome = isHome();
+            WebView old = web;
+            web = null;
+            try { old.stopLoading(); old.destroy(); } catch (Throwable ignored) { }
+            buildDisplay();
+            if (pres == null) return;
+            createWeb(pres.getContext());
+            if (!wasHome && u != null && !u.startsWith("data:")) web.loadUrl(u);
+            else if (homeUrl != null && !wasHome) web.loadUrl(homeUrl);
+        }, 300);
     }
 
     void setAspect(float a) {
         float na = Gfx.clamp(a, .5f, 3f);
-        if (Math.abs(na - aspect) / aspect < .03f) return;
+        if (Math.abs(na - aspect) / aspect < .02f) return;
         aspect = na;
-        if (web != null) queueRebuild();
+        if (web != null) web.setLayoutParams(pageParams());     // só muda o tamanho da página (rápido)
+        else cropW = cropH = 1;
     }
 
-    /** Ajustes mudaram o tamanho das letras: refaz a tela se preciso. */
+    /** Ajustes mudaram o tamanho das páginas: refaz a tela com a nova densidade. */
     void refreshSize() { if (web != null) queueRebuild(); }
 
     @SuppressLint("WrongConstant")

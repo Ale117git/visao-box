@@ -32,6 +32,18 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.2
+
+- **Mãos por cima das janelas**, em Ajustes → Modo → Aparência das mãos:
+  - **Luva:** a mão vira uma luva escura com detalhes azuis.
+  - **Mão real:** recorta a sua mão da imagem da câmera.
+  - **Esqueleto:** como era antes.
+  
+  Funciona com o rastreamento das mãos ligado.
+- **Puxar a janela com a mão.** Segure a janela pela barra com a pinça e traga a mão para perto do rosto: a janela vem junto e fica maior. Empurre para longe e ela se afasta e fica menor.
+- **Páginas sem "zoom".** A página agora é montada com largura de tablet (antes era a de um celular pequeno), então dá para ver muito mais coisa no YouTube e nos sites. Em Ajustes → Conforto → Tamanho das páginas há quatro opções: Grande, Médio, Normal e Pequeno.
+- **Apps do celular** (app novo): lista os apps instalados e abre qualquer um, como Minecraft ou YouTube. Também funciona por voz: "abrir Minecraft". O app abre na tela normal do celular, fora do óculos, porque o Android não deixa um app mostrar outro dentro dele. Para voltar, abra o Visão Box de novo.
+
 ## Novidades da 6.1
 
 - **Formato e resolução da imagem**, na tela de início e em Ajustes → Visão:

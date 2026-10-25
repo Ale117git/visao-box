@@ -10,6 +10,7 @@ interface Host {
     // navegadores (id = app: Navegador ou YouTube)
     void webOpen(int id);
     Bitmap webBitmap(int id);
+    float[] webCrop(int id);                  // parte útil do quadro {largura, altura} (0..1)
     String webTitle(int id);
     void webLoad(int id, String url);
     void webBack(int id);
@@ -58,6 +59,15 @@ interface Host {
     String assistantCaption();                // o que ele está dizendo (ou null)
     String assistantChat(String plainText);   // resposta de conversa (ou null)
     Bitmap logo();
+
+    // apps instalados no celular
+    java.util.List<PhoneApp> phoneApps();     // carrega na primeira vez (lista vazia enquanto carrega)
+    void launchApp(String pkg);
+
+    final class PhoneApp {
+        String label = "", pkg = "";
+        volatile Bitmap icon;
+    }
 
     /** Ajustes (os mesmos do painel da engrenagem). */
     SettingsModel.Env settingsEnv();

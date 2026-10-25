@@ -337,6 +337,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override public void webOpen(int id) { main.post(() -> pane(id).open()); }
     @Override public Bitmap webBitmap(int id) { WebPane p = panes.get(id); return p == null ? null : p.front; }
+    @Override public float[] webCrop(int id) { WebPane p = panes.get(id); return p == null ? new float[]{1, 1} : new float[]{p.cropW, p.cropH}; }
     @Override public String webTitle(int id) { WebPane p = panes.get(id); return p == null ? "" : p.title; }
     @Override public String webUrl(int id) { WebPane p = panes.get(id); return p == null ? "" : p.url; }
     @Override public boolean webInputFocused(int id) { WebPane p = panes.get(id); return p != null && p.input; }
@@ -568,6 +569,63 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         return logoBmp;
     }
     @Override public SettingsModel.Env settingsEnv() { return this; }
+
+    /* ================= apps do celular ================= */
+
+    private final List<PhoneApp> phoneApps = new CopyOnWriteArrayList<>();
+    private volatile boolean appsLoading, appsLoaded;
+
+    @Override
+    public List<PhoneApp> phoneApps() {
+        if (!appsLoaded && !appsLoading) {
+            appsLoading = true;
+            io.execute(() -> {
+                try {
+                    android.content.pm.PackageManager pm = getPackageManager();
+                    android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_MAIN);
+                    i.addCategory(android.content.Intent.CATEGORY_LAUNCHER);
+                    List<android.content.pm.ResolveInfo> list = pm.queryIntentActivities(i, 0);
+                    List<PhoneApp> out = new ArrayList<>();
+                    for (android.content.pm.ResolveInfo ri : list) {
+                        if (ri.activityInfo == null || getPackageName().equals(ri.activityInfo.packageName)) continue;
+                        PhoneApp a = new PhoneApp();
+                        a.pkg = ri.activityInfo.packageName;
+                        CharSequence l = ri.loadLabel(pm);
+                        a.label = l == null ? a.pkg : l.toString();
+                        out.add(a);
+                    }
+                    Collections.sort(out, (x, y) -> x.label.compareToIgnoreCase(y.label));
+                    phoneApps.clear();
+                    phoneApps.addAll(out);
+                    appsLoaded = true;
+                    for (PhoneApp a : out) {                        // ícones depois (a lista aparece logo)
+                        try { a.icon = drawableToBitmap(pm.getApplicationIcon(a.pkg), 96); } catch (Throwable ignored) { }
+                    }
+                } catch (Throwable t) {
+                    vrToast("Não consegui listar os apps: " + t.getMessage());
+                } finally { appsLoading = false; }
+            });
+        }
+        return phoneApps;
+    }
+
+    private static Bitmap drawableToBitmap(android.graphics.drawable.Drawable d, int size) {
+        Bitmap b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(b);
+        d.setBounds(0, 0, size, size);
+        d.draw(c);
+        return b;
+    }
+
+    @Override
+    public void launchApp(String pkg) {
+        main.post(() -> {
+            android.content.Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+            if (i == null) { vrToast("Esse app não pode ser aberto"); return; }
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            try { startActivity(i); } catch (Throwable t) { vrToast("Não consegui abrir: " + t.getMessage()); }
+        });
+    }
 
     private int battery() {
         try {

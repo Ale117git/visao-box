@@ -33,18 +33,18 @@ final class SpatialUi {
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
             RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14,
-            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18, FUNDOS = 19, CLIMA = 20, PINGUE = 21;
+            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18, FUNDOS = 19, CLIMA = 20, PINGUE = 21, CELULAR = 22;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão", "Fundos", "Clima", "Pingue-pongue"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão", "Fundos", "Clima", "Pingue-pongue", "Apps do celular"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}, {0xFF9AD8FF, 0xFF5B4BDB}, {0xFF9FB6CC, 0xFF3D5470}, {0xFFFF8F5C, 0xFF2E7D5B}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}, {0xFF9AD8FF, 0xFF5B4BDB}, {0xFF9FB6CC, 0xFF3D5470}, {0xFFFF8F5C, 0xFF2E7D5B}, {0xFF8CE0C8, 0xFF2B6CB0}};
     static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {1.12f, .8f}, {.72f, .52f}, {.72f, .48f},
-            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}, {.92f, .64f}, {.8f, .56f}, {.86f, .62f}};
+            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}, {.92f, .64f}, {.8f, .56f}, {.86f, .62f}, {.9f, .62f}};
     static final int[] DOCK = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, VOZ, AJUSTES, MENU};
     static final int[] MENU_APPS = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO,
-            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, PINGUE, FUNDOS, CLIMA, CINEMA, VOZ};
+            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, PINGUE, FUNDOS, CLIMA, CELULAR, CINEMA, VOZ};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
             {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"},
@@ -105,12 +105,13 @@ final class SpatialUi {
         final int type; final String key; Win win; int index; String id;
         Hit(int t, String k) { type = t; key = k; }
     }
-    static final class Hand { final float[] x = new float[21], y = new float[21]; boolean down, init; float cx, cy; long last; }
+    static final class Hand { final float[] x = new float[21], y = new float[21]; boolean down, init; float cx, cy, size; long last; }
     static final class Ptr {
         boolean exists, down; float x, y; Hit hit; Win drag, resize; float dx, dy; float wy0, wp0;
         boolean dockDrag, dockMoved, dockHome, kbDrag; float sx, sy, ox, oy;
         int webMode; float wfx, wfy, wlx, wly;      // página: 0 = esperando, 1 = rolando
         boolean sbDrag; float sbOff; long sbSent;   // barra de rolagem
+        float hs0, d0;                              // puxar com a mão: tamanho da mão e distância no começo
     }
     static final class Latch {
         boolean down, rel;
@@ -397,6 +398,7 @@ final class SpatialUi {
         if (app == VOZ) { host.startVoice(); return null; }
         if (app == MIDIA) host.loadMedia();
         if (app == FUNDOS && host.galleryAllowed()) host.galleryItems();
+        if (app == CELULAR) host.phoneApps();
         if (w != null) { w.minimized = false; toFront(w); if (isWeb(app)) host.webOpen(wid(w)); return w; }
         int k = 0;
         for (Win o : wins) if (!o.minimized) k++;
@@ -831,6 +833,8 @@ final class SpatialUi {
                 float[] q = toSpatial(p.x, p.y);
                 p.drag = h.win; p.dx = h.win.cx - q[0]; p.dy = h.win.cy - q[1];
                 p.wy0 = h.win.yaw; p.wp0 = h.win.pitch;
+                int hi = handIndex(p);
+                p.hs0 = hi >= 0 ? hands[hi].size : 0; p.d0 = h.win.dist;
                 break;
             }
             case H_RESIZE: toFront(h.win); if (h.win != cinemaWin) p.resize = h.win; break;
@@ -966,6 +970,13 @@ final class SpatialUi {
             float ry = (float) Math.atan(x / f), rp = (float) Math.atan(y / f);
             if (spatial()) { w.yaw = HeadTracker.wrap(ry + headYaw); w.pitch = headPitch - rp; }
             else { w.yaw = ry; w.pitch = -rp; }
+            // puxou a mão para perto do rosto (ela fica menor na câmera): a janela vem junto e fica maior
+            int hi = handIndex(p);
+            if (cfg.handDepth && hi >= 0 && p.hs0 > 1e-4f && hands[hi].size > 1e-4f) {
+                float ratio = hands[hi].size / p.hs0;
+                if (camMirror) ratio = 1 / ratio;                    // câmera da frente: o contrário
+                w.dist = Gfx.clamp(p.d0 * (float) Math.pow(ratio, 1.6), cfg.minDist * .7f, 4.5f);
+            }
             return;
         }
         if (p.resize != null) {
@@ -1067,6 +1078,7 @@ final class SpatialUi {
             h.init = true; h.last = now;
             float size = (float) Math.hypot(h.x[0] - h.x[9], h.y[0] - h.y[9]);
             if (size < 1e-4f) size = .1f;
+            h.size = snap || h.size <= 0 ? size : h.size + (size - h.size) * .35f;
             float ratio = (float) Math.hypot(h.x[4] - h.x[8], h.y[4] - h.y[8]) / size;
             if (h.down ? ratio > .45f : ratio < .28f) h.down = !h.down;
             h.cx = (h.x[4] + h.x[8]) / 2; h.cy = (h.y[4] + h.y[8]) / 2;
@@ -1078,6 +1090,8 @@ final class SpatialUi {
         float dx = x0 + r[0] * dw - h.x[0], dy = y0 + r[1] * dh - h.y[0];
         return dx * dx + dy * dy;
     }
+
+    private int handIndex(Ptr p) { return p == ptrs[0] ? 0 : p == ptrs[1] ? 1 : -1; }
 
     boolean handActive(int i, long now) { return cfg.handInput && hands[i].init && now - hands[i].last < 300; }
 
@@ -1344,6 +1358,7 @@ final class SpatialUi {
     }
 
     private static final Object[][] VOICE_APPS = {
+            {CELULAR, "apps do celular", "aplicativos do celular", "meus apps", "meus aplicativos"},
             {NAV, "navegador", "internet", "chrome", "google"}, {YOUTUBE, "youtube"}, {MIDIA, "midia", "videos", "musicas", "player"},
             {GALERIA, "galeria", "fotos"}, {CAMERA, "camera"}, {AJUSTES, "ajustes", "configuracoes", "configuracao"},
             {ARQUIVOS, "arquivos"}, {MENU, "menu", "aplicativos", "apps"}, {RELOGIO, "relogio", "hora"}, {DESENHO, "desenho"},
@@ -1367,6 +1382,12 @@ final class SpatialUi {
             String what = t.substring(g0.length()).replaceFirst("^(o |a |os |as )", "");
             for (Object[] e : VOICE_APPS) for (int i = 1; i < e.length; i++)
                 if (what.startsWith((String) e[i])) { openApp((Integer) e[0], now); reply("Abrindo " + NAMES[(Integer) e[0]] + ".", now); return; }
+            for (Host.PhoneApp pa : host.phoneApps())
+                if (!pa.label.isEmpty() && plain(pa.label).startsWith(what)) {
+                    reply("Abrindo " + pa.label + ". Ele abre fora do óculos; para voltar, abra o Visão Box de novo.", now);
+                    host.launchApp(pa.pkg);
+                    return;
+                }
             openInNewTab(normalizeUrl(what.replace(" ponto ", ".").replace(" ", "")), now);
             reply("Abrindo " + what + ".", now);
             return;
@@ -1719,6 +1740,7 @@ final class SpatialUi {
             case AJUSTES: settingsButtons(w, P, out); break;
             case FUNDOS: backdropButtons(w, P, out); break;
             case CLIMA: weatherButtons(w, P, out); break;
+            case CELULAR: phoneButtons(w, P, out); break;
             case CAMERA:
                 out.add(new Btn("shot", C.right - .05f, C.centerY() - .05f, .032f));
                 out.add(new Btn("rec", C.right - .05f, C.centerY() + .045f, .028f));
@@ -1824,6 +1846,7 @@ final class SpatialUi {
             case AJUSTES: settingsPress(w, id, now); break;
             case FUNDOS: backdropPress(w, id, now); break;
             case CLIMA: weatherPress(w, id, now); break;
+            case CELULAR: phonePress(w, id, now); break;
             case CAMERA:
                 if (id.equals("shot")) {
                     Bitmap fr = frame;
@@ -2022,6 +2045,7 @@ final class SpatialUi {
             case PINGUE: drawPong(w, P); break;
             case FUNDOS: drawBackdrops(w, P); break;
             case CLIMA: drawWeatherApp(w, P); break;
+            case CELULAR: drawPhoneApps(w, P); break;
             case CONTROLE: drawPad(w, P, now); break;
             default: break;
         }
@@ -2164,7 +2188,9 @@ final class SpatialUi {
         if (wb != null) {
             g.c.save();
             g.clipRound(a, .014f);
-            g.c.drawBitmap(wb, null, a, g.bmp);
+            float[] cr = host.webCrop(pid);
+            g.c.drawBitmap(wb, new android.graphics.Rect(0, 0, Math.max(1, Math.round(wb.getWidth() * cr[0])),
+                    Math.max(1, Math.round(wb.getHeight() * cr[1]))), a, g.bmp);
             g.c.restore();
         } else g.txt(w.app == YOUTUBE ? "Abrindo o YouTube…" : "Carregando…", a.centerX(), a.centerY(), .022f, 0xFF6B7280, Paint.Align.CENTER, g.medium);
     }
@@ -2723,6 +2749,10 @@ final class SpatialUi {
                 c.drawRoundRect(new RectF(-.5f, -.08f, .52f, .14f), .11f, .11f, fl);
                 for (int k = 0; k < 3; k++) c.drawLine(-.26f + k * .26f, .3f, -.34f + k * .26f, .52f, s);
                 break;
+            case CELULAR:
+                c.drawRoundRect(new RectF(-.34f, -.6f, .34f, .6f), .1f, .1f, s);
+                for (int k = 0; k < 4; k++) c.drawCircle(-.12f + (k % 2) * .24f, -.22f + (k / 2) * .26f, .07f, fl);
+                break;
             case PINGUE:
                 c.drawCircle(-.1f, -.1f, .38f, fl);
                 c.drawLine(.16f, .16f, .46f, .46f, s);
@@ -2909,7 +2939,9 @@ final class SpatialUi {
         for (int i = 0; i < 2; i++) {
             if (!handActive(i, now)) continue;
             Hand h = hands[i];
-            if (cfg.skeleton) {
+            if (cfg.handStyle == 2 && camFrame != null && !camFrame.isRecycled()) drawRealHand(h);
+            else if (cfg.handStyle >= 1) drawGlove(h);
+            else if (cfg.skeleton) {
                 Path p = new Path();
                 for (int[] e : CON) { p.moveTo(h.x[e[0]], h.y[e[0]]); p.lineTo(h.x[e[1]], h.y[e[1]]); }
                 g.stroke.setColor(0x527CC4FF); g.stroke.setStrokeWidth(.012f);
@@ -3503,5 +3535,157 @@ final class SpatialUi {
         twoWin.h = Gfx.clamp(twoH0 * k, .28f, 1.5f);
         hov.add("resize:" + twoWin.id);
         if (isWeb(twoWin.app)) host.webAspect(wid(twoWin), contentAspect(twoWin));
+    }
+
+    /* ================= mãos: luva e recorte da mão real ================= */
+
+    private float camX0, camY0, camW = 1, camH = 1;
+    private boolean camMirror;
+    private Bitmap camFrame;
+
+    /** Onde a imagem da câmera está na cena (para recortar a mão de verdade). */
+    void setCam(float x0, float y0, float w, float h, boolean mirror, Bitmap frame) {
+        camX0 = x0; camY0 = y0; camW = w; camH = h; camMirror = mirror; camFrame = frame;
+    }
+
+    private static final int[][] FINGERS = {{0, 1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16}, {17, 18, 19, 20}};
+    private static final float[] FINGER_W = {.36f, .30f, .31f, .29f, .25f};
+    private static final int[] PALM = {0, 1, 2, 5, 9, 13, 17};
+    private final Paint handPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    /** Silhueta cheia da mão: palma + dedos grossos e arredondados, a partir dos 21 pontos. */
+    private Path handShape(Hand h) {
+        float size = Math.max(.02f, (float) Math.hypot(h.x[0] - h.x[9], h.y[0] - h.y[9]));
+        Path palm = new Path();
+        palm.moveTo(h.x[PALM[0]], h.y[PALM[0]]);
+        for (int k = 1; k < PALM.length; k++) palm.lineTo(h.x[PALM[k]], h.y[PALM[k]]);
+        palm.close();
+        handPaint.setStyle(Paint.Style.STROKE);
+        handPaint.setStrokeCap(Paint.Cap.ROUND);
+        handPaint.setStrokeJoin(Paint.Join.ROUND);
+        Path out = new Path();
+        handPaint.setStrokeWidth(size * .3f);
+        handPaint.getFillPath(palm, out);                      // palma com bordas arredondadas
+        out.op(palm, Path.Op.UNION);
+        for (int f = 0; f < FINGERS.length; f++) {
+            int[] ch = FINGERS[f];
+            Path fp = new Path();
+            fp.moveTo(h.x[ch[0]], h.y[ch[0]]);
+            for (int k = 1; k < ch.length; k++) fp.lineTo(h.x[ch[k]], h.y[ch[k]]);
+            handPaint.setStrokeWidth(size * FINGER_W[f]);
+            Path fill = new Path();
+            handPaint.getFillPath(fp, fill);
+            out.op(fill, Path.Op.UNION);
+        }
+        return out;
+    }
+
+    /** Luva: a mão vira uma luva escura com detalhes azuis, por cima das janelas. */
+    private void drawGlove(Hand h) {
+        Canvas c = g.c;
+        Path hp = handShape(h);
+        g.fill.setShader(new LinearGradient(h.x[0], h.y[0], h.x[12], h.y[12], 0xF2232833, 0xF2414A5C, Shader.TileMode.CLAMP));
+        c.drawPath(hp, g.fill);
+        g.fill.setShader(null);
+        g.stroke.setColor(0xCC7CC4FF); g.stroke.setStrokeWidth(.003f);
+        c.drawPath(hp, g.stroke);
+        // costuras nos dedos e pontas iluminadas
+        Path seams = new Path();
+        for (int[] ch : FINGERS) {
+            seams.moveTo(h.x[ch[1]], h.y[ch[1]]);
+            for (int k = 2; k < ch.length; k++) seams.lineTo(h.x[ch[k]], h.y[ch[k]]);
+        }
+        g.stroke.setColor(0x447CC4FF); g.stroke.setStrokeWidth(.0016f);
+        c.drawPath(seams, g.stroke);
+        int tipCol = h.down ? 0xFFFFFFFF : 0xFF7CC4FF;
+        for (int t : new int[]{4, 8, 12, 16, 20}) g.circle(h.x[t], h.y[t], .0042f, tipCol);
+        g.ring(h.x[0], h.y[0], .009f, .002f, 0x887CC4FF);
+    }
+
+    /** Mão real: recorta a sua mão da imagem da câmera e coloca por cima das janelas. */
+    private void drawRealHand(Hand h) {
+        Canvas c = g.c;
+        Path hp = handShape(h);
+        c.save();
+        c.clipPath(hp);
+        RectF r = new RectF(camX0, camY0, camX0 + camW, camY0 + camH);
+        if (camMirror) c.scale(-1, 1);
+        c.drawBitmap(camFrame, null, r, g.bmp);
+        c.restore();
+        g.stroke.setColor(h.down ? 0x99FFFFFF : 0x40FFFFFF); g.stroke.setStrokeWidth(.0022f);
+        c.drawPath(hp, g.stroke);
+    }
+
+    /* ================= Apps do celular ================= */
+
+    private static final int APP_COLS = 6, APP_ROWS = 3;
+
+    private RectF appCell(Parts P, int i) {
+        RectF C = P.content;
+        float top = C.top, bottom = C.bottom - .075f;
+        float cw = C.width() / APP_COLS, ch = (bottom - top) / APP_ROWS;
+        float x = C.left + (i % APP_COLS) * cw, y = top + (i / APP_COLS) * ch;
+        return new RectF(x, y, x + cw, y + ch);
+    }
+
+    private void phoneButtons(Win w, Parts P, List<Btn> out) {
+        List<Host.PhoneApp> apps = host.phoneApps();
+        int per = APP_COLS * APP_ROWS, start = w.page * per;
+        for (int i = 0; i < per && start + i < apps.size(); i++) {
+            RectF r = appCell(P, i);
+            out.add(new Btn("a" + (start + i), r.centerX(), r.top + r.height() * .4f, Math.min(r.width(), r.height()) * .28f));
+        }
+        RectF C = P.content;
+        out.add(new Btn("pp", C.left + .03f, C.bottom - .045f, .018f));
+        out.add(new Btn("pn", C.left + .17f, C.bottom - .045f, .018f));
+    }
+
+    private void phonePress(Win w, String id, long now) {
+        List<Host.PhoneApp> apps = host.phoneApps();
+        int per = APP_COLS * APP_ROWS;
+        if (id.equals("pp")) { w.page = Math.max(0, w.page - 1); return; }
+        if (id.equals("pn")) { if ((w.page + 1) * per < apps.size()) w.page++; return; }
+        if (id.startsWith("a")) {
+            int i = Integer.parseInt(id.substring(1));
+            if (i < 0 || i >= apps.size()) return;
+            Host.PhoneApp a = apps.get(i);
+            say("Abrindo " + a.label + "…", now);
+            host.launchApp(a.pkg);
+        }
+    }
+
+    private void drawPhoneApps(Win w, Parts P) {
+        Canvas c = g.c;
+        RectF C = P.content;
+        List<Host.PhoneApp> apps = host.phoneApps();
+        if (apps.isEmpty()) {
+            g.txt("Procurando os apps do celular…", C.centerX(), C.centerY(), .018f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+            return;
+        }
+        int per = APP_COLS * APP_ROWS, start = w.page * per;
+        for (int i = 0; i < per && start + i < apps.size(); i++) {
+            Host.PhoneApp a = apps.get(start + i);
+            RectF r = appCell(P, i);
+            float cx = r.centerX(), cy = r.top + r.height() * .4f, rad = Math.min(r.width(), r.height()) * .28f;
+            boolean h = hov.contains("btn:" + w.id + ":a" + (start + i));
+            if (h) g.circle(cx, cy, rad * 1.35f, 0x26FFFFFF);
+            float s = rad * (h ? 1.12f : 1f);
+            if (a.icon != null) c.drawBitmap(a.icon, null, new RectF(cx - s, cy - s, cx + s, cy + s), g.bmp);
+            else { g.fill.setColor(0x33FFFFFF); c.drawRoundRect(new RectF(cx - s, cy - s, cx + s, cy + s), s * .4f, s * .4f, g.fill); }
+            g.txt(g.fit(a.label, .014f, r.width() - .008f, g.regular), cx, cy + s + .02f, .014f, 0xE6FFFFFF, Paint.Align.CENTER, g.regular);
+        }
+        int pages = Math.max(1, (apps.size() + per - 1) / per);
+        g.txt((w.page + 1) + " / " + pages, C.left + .1f, C.bottom - .045f, .015f, 0xCCFFFFFF, Paint.Align.CENTER, g.medium);
+        for (String bid : new String[]{"pp", "pn"}) {
+            float bx = C.left + (bid.equals("pp") ? .03f : .17f), by = C.bottom - .045f;
+            boolean h = hov.contains("btn:" + w.id + ":" + bid);
+            g.circle(bx, by, .018f, h ? 0xF2FFFFFF : 0x2EFFFFFF);
+            float d = bid.equals("pp") ? 1 : -1;
+            int ic = h ? 0xFF15171E : Color.WHITE;
+            g.line(bx + .004f * d, by - .007f, bx - .004f * d, by, .0026f, ic);
+            g.line(bx - .004f * d, by, bx + .004f * d, by + .007f, .0026f, ic);
+        }
+        g.txt(g.fit("O app abre na tela normal do celular, fora do óculos. Para voltar, abra o Visão Box de novo.", .014f, C.width() - .24f, g.regular),
+                C.right, C.bottom - .045f, .014f, 0x99FFFFFF, Paint.Align.RIGHT, g.regular);
     }
 }

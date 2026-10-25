@@ -351,6 +351,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             webFocusId = ui.webFocusId();
 
             boolean camBg = cfg.background == Config.BG_CAMERA && !calibration;
+            ui.setCam(camX0, camY0, camDW, camDH, mirror, frame);
             boolean segOn = camBg && cfg.segMode != Config.SEG_OFF && segReady && maskData != null;
             boolean useBack = segOn && ui.anyBehind();
 

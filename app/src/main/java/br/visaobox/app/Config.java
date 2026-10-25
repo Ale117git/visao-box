@@ -14,6 +14,9 @@ final class Config {
     static final float[] FORMAT_RATIO = {1f, 4f / 3f, 3f / 4f, 16f / 9f, 9f / 16f, 0f};   // largura / altura (0 = preencher)
     static final String[] RESOLUTIONS = {"Automática", "480p", "720p", "1080p", "1440p"};
     static final int[] RES_PX = {0, 480, 720, 1080, 1440};
+    static final String[] PAGE_SIZES = {"Grande (zoom)", "Médio", "Normal", "Pequeno (vê mais)"};
+    static final float[] PAGE_CSS = {560f, 720f, 900f, 1150f};
+    static final String[] HAND_STYLES = {"Esqueleto", "Luva", "Mão real (recorte)"};
     static final String[] ASSIST_NAMES = {"Visão", "Jarvis"};
     static final int SEG_OFF = 0, SEG_RECORTE = 1, SEG_SILHUETA = 2, SEG_CONTORNO = 3;
 
@@ -71,10 +74,12 @@ final class Config {
     // ---- Início ----
     boolean showStart = true;       // tela de início antes do VR
     boolean twoHands = false;       // duas mãos (pinça em cada uma, ampliar janelas)
-    float webCss = 480f;            // largura das páginas (px de CSS): menor = letras maiores
+    float webCss = 900f;            // largura das páginas (px de CSS): menor = letras maiores
     int assistantName = 0;          // 0 = Visão, 1 = Jarvis
     int format = 0;                 // formato da imagem de cada olho (FORMATS)
     int resolution = 0;             // resolução da imagem (RESOLUTIONS)
+    int handStyle = 1;              // aparência das mãos (HAND_STYLES): luva por padrão
+    boolean handDepth = true;       // puxar a mão para perto do rosto traz a janela junto
 
     // ---- Dock ----
     boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
@@ -92,7 +97,7 @@ final class Config {
         assistant = o.assistant; voicePitch = o.voicePitch; voiceRate = o.voiceRate; voiceName = o.voiceName; userName = o.userName;
         bgImage = o.bgImage; weather = o.weather; weatherAmt = o.weatherAmt; weatherSound = o.weatherSound;
         showStart = o.showStart; twoHands = o.twoHands; webCss = o.webCss; assistantName = o.assistantName;
-        format = o.format; resolution = o.resolution;
+        format = o.format; resolution = o.resolution; handStyle = o.handStyle; handDepth = o.handDepth;
     }
 
     void load(SharedPreferences p, String k) {
@@ -150,10 +155,13 @@ final class Config {
         weatherSound = p.getBoolean(k + "wxs", weatherSound);
         showStart = p.getBoolean(k + "start", showStart);
         twoHands = p.getBoolean(k + "hands2", twoHands);
-        webCss = p.getFloat(k + "css", webCss);
+        webCss = p.getFloat(k + "css2", webCss);
         assistantName = p.getInt(k + "aname", assistantName);
         format = p.getInt(k + "fmt", format);
         resolution = p.getInt(k + "resp", resolution);
+        handStyle = p.getInt(k + "hstyle", handStyle);
+        handDepth = p.getBoolean(k + "hdepth", handDepth);
+        if (handStyle < 0 || handStyle >= HAND_STYLES.length) handStyle = 1;
         if (format < 0 || format >= FORMATS.length) format = 0;
         if (resolution < 0 || resolution >= RESOLUTIONS.length) resolution = 0;
         if (background < 0 || background >= BG_NAMES.length) background = BG_CAMERA;
@@ -179,8 +187,8 @@ final class Config {
                 .putBoolean(k + "asst", assistant).putFloat(k + "vpitch", voicePitch).putFloat(k + "vrate", voiceRate)
                 .putString(k + "vname", voiceName).putString(k + "uname", userName)
                 .putString(k + "bgimg", bgImage).putInt(k + "wx", weather).putFloat(k + "wxa", weatherAmt).putBoolean(k + "wxs", weatherSound)
-                .putBoolean(k + "start", showStart).putBoolean(k + "hands2", twoHands).putFloat(k + "css", webCss).putInt(k + "aname", assistantName)
-                .putInt(k + "fmt", format).putInt(k + "resp", resolution)
+                .putBoolean(k + "start", showStart).putBoolean(k + "hands2", twoHands).putFloat(k + "css2", webCss).putInt(k + "aname", assistantName)
+                .putInt(k + "fmt", format).putInt(k + "resp", resolution).putInt(k + "hstyle", handStyle).putBoolean(k + "hdepth", handDepth)
                 .putBoolean(k + "exists", true)
                 .apply();
     }
