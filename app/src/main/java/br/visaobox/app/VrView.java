@@ -381,10 +381,11 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
 
     private void computeGeometry() {
         float pxPerMm = getResources().getDisplayMetrics().xdpi / 25.4f;
+        float[] e = eyeSize(cfg.stereo ? W / 2f : W, H);
         if (cfg.stereo) {
             n = 2;
-            float S = Math.min(W / 2f, H) * cfg.eyeScale;
-            eyeW = S; eyeH = S;
+            float S = Math.min(e[0], e[1]);
+            eyeW = e[0]; eyeH = e[1];
             float half = Gfx.clamp(cfg.ipdMm * pxPerMm / 2f, S * .3f, W / 2f);
             float ax = cfg.alignXmm * pxPerMm, ay = cfg.alignYmm * pxPerMm;
             eyeCX[0] = W / 2f - half + ax;
@@ -392,13 +393,16 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             eyeCY[0] = eyeCY[1] = H / 2f + ay;
         } else {
             n = 1;
-            eyeW = W; eyeH = H;
+            eyeW = e[0]; eyeH = e[1];
             eyeCX[0] = W / 2f; eyeCY[0] = H / 2f;
         }
         distNow = distorted(); k1Now = cfg.k1; k2Now = cfg.k2;
         // a lente amplia o centro: desenha com sobra de resolução para compensar o zoom (fica nítido)
         float mag = distNow ? 1 + cfg.k1 + cfg.k2 : 1;
-        float rs = Math.min(cfg.resScale * mag, 1800f / Math.max(1, eyeH));
+        int resPx = Config.RES_PX[Math.max(0, Math.min(Config.RES_PX.length - 1, cfg.resolution))];
+        float rs = resPx > 0 ? resPx / Math.max(1f, eyeH)                         // resolução escolhida (altura em pixels)
+                : Math.min(cfg.resScale * mag, 1800f / Math.max(1, eyeH));   // automática: tela × compensação da lente
+        if (eyeW * rs > 3072) rs = 3072 / eyeW;                     // limite de memória (formatos bem largos)
         int bw = Math.max(64, Math.round(eyeW * rs)), bh = Math.max(64, Math.round(eyeH * rs));
         if (front == null || front.w != bw || front.h != bh) {
             if (front != null) front.release();
@@ -406,12 +410,21 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             front = new Layer(bw, bh);
             back = new Layer(bw, bh);
         }
-        String key = W + ":" + H + ":" + n + ":" + eyeW + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + distNow;
+        String key = W + ":" + H + ":" + n + ":" + eyeW + ":" + eyeH + ":" + eyeCX[0] + ":" + eyeCX[1] + ":" + eyeCY[0] + ":" + cfg.k1 + ":" + cfg.k2 + ":" + distNow;
         if (!key.equals(meshKey)) {
             meshKey = key;
             buildMesh();
         }
         ui.eyeHalfW = eyeW / eyeH / 2f;
+    }
+
+    /** Tamanho da imagem de cada olho (px) dentro da área disponível, no formato escolhido. */
+    private float[] eyeSize(float availW, float availH) {
+        float r = Config.FORMAT_RATIO[Math.max(0, Math.min(Config.FORMAT_RATIO.length - 1, cfg.format))];
+        float w, h;
+        if (r <= 0) { w = availW; h = availH; }              // tela cheia
+        else { h = Math.min(availH, availW / r); w = h * r; }
+        return new float[]{w * cfg.eyeScale, h * cfg.eyeScale};
     }
 
     private void buildMesh() {

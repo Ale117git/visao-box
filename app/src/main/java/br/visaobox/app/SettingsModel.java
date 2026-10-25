@@ -86,6 +86,8 @@ final class SettingsModel {
         b.toggle("Mostrar a tela de início ao abrir", () -> cfg.showStart, v -> cfg.showStart = v);
 
         b.section("Visão (VR box)");
+        b.choice("Formato da imagem", Config.FORMATS, () -> cfg.format, v -> cfg.format = v).quick = true;
+        b.choice("Resolução", Config.RESOLUTIONS, () -> cfg.resolution, v -> cfg.resolution = v).quick = true;
         b.toggle("Dois olhos (VR box)", () -> cfg.stereo, v -> cfg.stereo = v).quick = true;
         b.slider("Distância entre os olhos (IPD)", 50, 76, .5f, () -> cfg.ipdMm, v -> cfg.ipdMm = v, v -> String.format(Locale.US, "%.1f mm", v)).quick = true;
         b.slider("Tamanho de cada imagem", .6f, 1.1f, .01f, () -> cfg.eyeScale, v -> cfg.eyeScale = v, SettingsModel::pct).quick = true;
@@ -97,7 +99,7 @@ final class SettingsModel {
         b.slider("Alinhamento vertical", -10, 10, .5f, () -> cfg.alignYmm, v -> cfg.alignYmm = v, v -> String.format(Locale.US, "%+.1f mm", v));
         b.slider("Escurecer as bordas", 0, 1, .05f, () -> cfg.vignette, v -> cfg.vignette = v, SettingsModel::pct);
         b.slider("Intensidade do 3D", 0, 2, .05f, () -> cfg.stereo3d, v -> cfg.stereo3d = v, SettingsModel::pct);
-        b.slider("Nitidez (resolução)", .5f, 1.5f, .05f, () -> cfg.resScale, v -> cfg.resScale = v, SettingsModel::pct).quick = true;
+        b.slider("Nitidez (na resolução automática)", .5f, 1.5f, .05f, () -> cfg.resScale, v -> cfg.resScale = v, SettingsModel::pct);
         b.action("Tela de calibração", () -> "Calibrar", env::calibrate);
 
         b.section("Conforto");

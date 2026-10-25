@@ -10,6 +10,10 @@ final class Config {
     static final int BG_CAMERA = 0, BG_VIRTUAL = 1, BG_ESCURO = 2, BG_ESPACO = 3, BG_PRAIA = 4, BG_POR_DO_SOL = 5, BG_CINEMA = 6, BG_IMAGE = 7;
     static final String[] BG_NAMES = {"Câmera", "Grade 3D", "Escuro", "Espaço", "Praia", "Pôr do sol", "Sala de cinema", "Imagem"};
     static final String[] WEATHER = {"Nenhum", "Chuva", "Tempestade", "Neve", "Neblina", "Vaga-lumes", "Estrelas cadentes", "Folhas caindo"};
+    static final String[] FORMATS = {"1:1 (quadrado)", "4:3", "3:4", "16:9", "9:16", "Tela cheia"};
+    static final float[] FORMAT_RATIO = {1f, 4f / 3f, 3f / 4f, 16f / 9f, 9f / 16f, 0f};   // largura / altura (0 = preencher)
+    static final String[] RESOLUTIONS = {"Automática", "480p", "720p", "1080p", "1440p"};
+    static final int[] RES_PX = {0, 480, 720, 1080, 1440};
     static final String[] ASSIST_NAMES = {"Visão", "Jarvis"};
     static final int SEG_OFF = 0, SEG_RECORTE = 1, SEG_SILHUETA = 2, SEG_CONTORNO = 3;
 
@@ -69,6 +73,8 @@ final class Config {
     boolean twoHands = false;       // duas mãos (pinça em cada uma, ampliar janelas)
     float webCss = 480f;            // largura das páginas (px de CSS): menor = letras maiores
     int assistantName = 0;          // 0 = Visão, 1 = Jarvis
+    int format = 0;                 // formato da imagem de cada olho (FORMATS)
+    int resolution = 0;             // resolução da imagem (RESOLUTIONS)
 
     // ---- Dock ----
     boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
@@ -86,6 +92,7 @@ final class Config {
         assistant = o.assistant; voicePitch = o.voicePitch; voiceRate = o.voiceRate; voiceName = o.voiceName; userName = o.userName;
         bgImage = o.bgImage; weather = o.weather; weatherAmt = o.weatherAmt; weatherSound = o.weatherSound;
         showStart = o.showStart; twoHands = o.twoHands; webCss = o.webCss; assistantName = o.assistantName;
+        format = o.format; resolution = o.resolution;
     }
 
     void load(SharedPreferences p, String k) {
@@ -145,6 +152,10 @@ final class Config {
         twoHands = p.getBoolean(k + "hands2", twoHands);
         webCss = p.getFloat(k + "css", webCss);
         assistantName = p.getInt(k + "aname", assistantName);
+        format = p.getInt(k + "fmt", format);
+        resolution = p.getInt(k + "resp", resolution);
+        if (format < 0 || format >= FORMATS.length) format = 0;
+        if (resolution < 0 || resolution >= RESOLUTIONS.length) resolution = 0;
         if (background < 0 || background >= BG_NAMES.length) background = BG_CAMERA;
         if (weather < 0 || weather >= WEATHER.length) weather = 0;
         if (placement == CINEMA) placement = ESPACIAL; // o cinema começa sempre desligado
@@ -169,6 +180,7 @@ final class Config {
                 .putString(k + "vname", voiceName).putString(k + "uname", userName)
                 .putString(k + "bgimg", bgImage).putInt(k + "wx", weather).putFloat(k + "wxa", weatherAmt).putBoolean(k + "wxs", weatherSound)
                 .putBoolean(k + "start", showStart).putBoolean(k + "hands2", twoHands).putFloat(k + "css", webCss).putInt(k + "aname", assistantName)
+                .putInt(k + "fmt", format).putInt(k + "resp", resolution)
                 .putBoolean(k + "exists", true)
                 .apply();
     }

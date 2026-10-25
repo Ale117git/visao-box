@@ -32,6 +32,12 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.1
+
+- **Formato e resolução da imagem**, na tela de início e em Ajustes → Visão:
+  - Formato de cada olho: 1:1 (quadrado), 4:3, 3:4, 16:9, 9:16 ou tela cheia.
+  - Resolução: automática (a da tela, compensando a lente), 480p, 720p, 1080p ou 1440p. Resolução menor deixa o app mais leve; maior deixa mais nítido.
+
 ## Novidades da 6.0
 
 - **Navegador novo.** Cada página (abas, YouTube, Player) agora roda numa *tela virtual* de verdade do Android, do tamanho exato da janela. O navegador desenha tudo normalmente, então a rolagem não deixa mais partes brancas e não trava o app. As letras das páginas podem ser aumentadas em Ajustes → Conforto.
