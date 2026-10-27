@@ -62,6 +62,7 @@ import java.util.List;
 public class ControllerActivity extends Activity implements SensorEventListener {
 
     private static final int REQ_BT = 41;
+    private static final int SENSOR_US = 5000;
     private static final String[] MODE_NAMES = {"Mouse no ar", "Touchpad", "Raio"};
     private static final String[] SENS_NAMES = {"Baixa", "Média", "Alta"};
     private static final float[] SENS = {.7f, 1f, 1.5f};
@@ -120,9 +121,12 @@ public class ControllerActivity extends Activity implements SensorEventListener 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        CrashLog.install(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences("visaobox", MODE_PRIVATE);
-        prefs.edit().putBoolean("ctlMode", true).apply();
+        // "ctlStarting" fica ligado até o controle abrir direito: se fechar com erro, o app não reabre preso nele
+        prefs.edit().putBoolean("ctlMode", true).putBoolean("ctlStarting", true).commit();
+        main.postDelayed(() -> prefs.edit().putBoolean("ctlStarting", false).apply(), 4000);
         code = prefs.getInt("ctlCode", 0);
         manualIp = prefs.getString("ctlIp", "");
         left = prefs.getBoolean("ctlLeft", false);
@@ -442,9 +446,10 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         netThread.start();
         net = new Handler(netThread.getLooper());
         net.post(() -> {
-            if (rot != null) sm.registerListener(this, rot, SensorManager.SENSOR_DELAY_FASTEST, net);
-            if (gyro != null) sm.registerListener(this, gyro, SensorManager.SENSOR_DELAY_FASTEST, net);
-            if (magRot != null && compass) sm.registerListener(this, magRot, SensorManager.SENSOR_DELAY_UI, net);
+            // 5 ms = 200 por segundo: o máximo permitido sem permissão especial (Android 12+ fecha o app acima disso)
+            try { if (rot != null) sm.registerListener(this, rot, SENSOR_US, net); } catch (Throwable t) { rot = null; }
+            try { if (gyro != null) sm.registerListener(this, gyro, SENSOR_US, net); } catch (Throwable t) { gyro = null; }
+            try { if (magRot != null && compass) sm.registerListener(this, magRot, SensorManager.SENSOR_DELAY_UI, net); } catch (Throwable t) { magRot = null; }
             if (!useBt) {
                 try { sock = new DatagramSocket(); sock.setBroadcast(true); sock.setSoTimeout(500); } catch (Throwable t) { sock = null; }
                 try {

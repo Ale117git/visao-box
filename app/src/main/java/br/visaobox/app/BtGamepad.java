@@ -99,6 +99,10 @@ final class BtGamepad {
     }
 
     void start() {
+        try { startInner(); } catch (Throwable t) { listener.onStatus("Não deu para ligar o modo Bluetooth neste celular. Use o Wi-Fi.", false); }
+    }
+
+    private void startInner() {
         if (!supported()) { listener.onStatus("O modo Bluetooth precisa de Android 9 ou mais novo. Use o Wi-Fi.", false); return; }
         BluetoothAdapter a = adapter();
         if (a == null) { listener.onStatus("Este celular não tem Bluetooth.", false); return; }

@@ -32,6 +32,11 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Correção 6.5.1
+- O modo controle fechava ao abrir no Android 12 ou mais novo (o sensor era pedido rápido demais, acima do limite de 200 leituras por segundo sem permissão especial). Corrigido.
+- Se o app fechar com erro, na próxima abertura aparece o texto do erro com o botão "Copiar".
+- Se o modo controle fechar ao abrir, o app não fica mais preso abrindo direto nele.
+
 ## Novidades da 6.5 — mouse no ar, touchpad e Bluetooth
 - **Ligação por Bluetooth (sem Wi-Fi):** o celular-controle vira um controle de videogame de verdade (HID). No controle: Bluetooth → Conectar → "Ficar visível". No celular do óculos: Configurações → Bluetooth → parear o celular-controle. Depois conecta sozinho. Precisa de Android 9+ e de um fabricante que não bloqueie o recurso; se bloquear, o app avisa e o Wi-Fi continua funcionando.
 - **Mouse no ar (novo padrão):** girar o celular move a mira, como o controle de uma Smart TV. Não tem "frente" para alinhar, então não escorrega. Tremor pequeno é ignorado; movimento rápido acelera. Funciona segurando deitado ou em pé.

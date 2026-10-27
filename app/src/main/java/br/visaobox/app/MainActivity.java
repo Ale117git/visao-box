@@ -85,8 +85,13 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences("visaobox", MODE_PRIVATE);
+        CrashLog.install(this);
+        if (prefs.getBoolean("ctlStarting", false))            // o controle fechou ao abrir: volta para a tela normal
+            prefs.edit().putBoolean("ctlMode", false).putBoolean("ctlStarting", false).commit();
+        final String crash = CrashLog.take(prefs);
+        if (crash != null) main.post(() -> showCrash(crash));
         // da última vez este celular era o controle: abre direto no modo controle
-        if (prefs.getBoolean("ctlMode", false)) {
+        if (crash == null && prefs.getBoolean("ctlMode", false)) {
             startActivity(new android.content.Intent(this, ControllerActivity.class));
             finish();
             return;
@@ -996,6 +1001,22 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             startActivity(new android.content.Intent(this, ControllerActivity.class));
             finish();
         });
+    }
+
+    /** Mostra o erro da última vez, com botão para copiar e mandar. */
+    private void showCrash(String text) {
+        try {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("O app fechou com um erro da última vez")
+                    .setMessage("Copie e mande este texto para corrigir:\n\n" + text)
+                    .setPositiveButton("Copiar", (d, w) -> {
+                        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                        if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("erro", text));
+                        android.widget.Toast.makeText(this, "Copiado", android.widget.Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("Fechar", null)
+                    .show();
+        } catch (Throwable ignored) { }
     }
 
     private void vrToast(String s) { vr.onGl(() -> vr.ui.sayNow(s)); android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show(); }
