@@ -182,6 +182,9 @@ final class SpatialUi {
     private boolean rHomeDown, rHomeFired; private long rHomeT;
     private boolean rScrollInit; private float rsx, rsy, rAccX, rAccY, rPageAcc;
     private float rHandX = Float.NaN, rHandY;
+    private float[] rAxis = {0, 1, 0};                 // eixo de mira do aparelho (escolhido ao alinhar)
+    private final OneEuro rfYaw = new OneEuro(1.1f, .9f, 1f), rfPitch = new OneEuro(1.1f, .9f, 1f);
+    private float rYawUnwrap, rYawPrev; private long rLastT;
 
     // ponteiro central
     float gazeX = 0, gazeY = 0; private final Latch gLatch = new Latch(); private boolean gazeForced;
@@ -1593,12 +1596,21 @@ final class SpatialUi {
         }
         boolean sp = spatial();
         float hy = sp ? headYaw : 0, hp = sp ? headPitch : 0;
-        if (rAlign && now >= rAlignAt) { rYawOff = HeadTracker.wrap(hy - r.yaw); rAlign = false; }
-        float[] q = remoteAim(HeadTracker.wrap(r.yaw + rYawOff), r.pitch, r.leftHand, hy, hp, f);
-        float tx = Gfx.clamp(q[0], -.75f, .75f), ty = Gfx.clamp(q[1], -.75f, .75f);
-        float a = Gfx.clamp((float) Math.hypot(tx - gazeX, ty - gazeY) / .03f, .35f, 1f);   // tira o tremor da mão
-        gazeX += (tx - gazeX) * a;
-        gazeY += (ty - gazeY) * a;
+        float[] rq = r.predicted(now);
+        if (rAlign && now >= rAlignAt) {
+            rAxis = RemoteProto.aimAxis(rq);                                  // em pé ou deitado: tanto faz
+            float[] yp0 = RemoteProto.aimYawPitch(rq, rAxis);
+            rYawOff = HeadTracker.wrap(hy - yp0[0]); rAlign = false;
+            rfYaw.reset(); rfPitch.reset(); rYawUnwrap = 0; rYawPrev = 0;
+        }
+        float[] yp = RemoteProto.aimYawPitch(rq, rAxis);
+        float yaw = HeadTracker.wrap(yp[0] + rYawOff);
+        rYawUnwrap += HeadTracker.wrap(yaw - rYawPrev); rYawPrev = yaw;     // sem pulo em ±180°
+        float fdt = Gfx.clamp((now - rLastT) / 1000f, .001f, .1f); rLastT = now;
+        float fy = rfYaw.filter(rYawUnwrap, fdt), fp = rfPitch.filter(yp[1], fdt);   // tira o tremor
+        float[] q = remoteAim(HeadTracker.wrap(fy), fp, r.leftHand, hy, hp, f);
+        gazeX = Gfx.clamp(q[0], -.75f, .75f);
+        gazeY = Gfx.clamp(q[1], -.75f, .75f);
         rHandX = q[2]; rHandY = q[3];
 
         // rolagem: o controle manda o total acumulado

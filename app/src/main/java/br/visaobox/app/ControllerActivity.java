@@ -60,7 +60,12 @@ public class ControllerActivity extends Activity implements SensorEventListener 
 
     private SharedPreferences prefs;
     private SensorManager sm;
-    private Sensor rot;
+    private Sensor rot, magRot;
+    private final YawFusion fusion = new YawFusion();
+    private boolean compass = true;
+    private WifiManager.WifiLock wifiLock;
+    private volatile long lastSend;
+    private int ticks;
     private Vibrator vib;
 
     // rede
@@ -102,10 +107,13 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         code = prefs.getInt("ctlCode", 0);
         manualIp = prefs.getString("ctlIp", "");
         left = prefs.getBoolean("ctlLeft", false);
+        compass = prefs.getBoolean("ctlCompass", true);
+        fusion.enabled = compass;
         sm = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sm != null) {
             rot = sm.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
             if (rot == null) rot = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+            else magRot = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);     // bússola contra o desvio
         }
         vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (code >= 1000) showPad(); else showSetup();
@@ -114,13 +122,12 @@ public class ControllerActivity extends Activity implements SensorEventListener 
     @Override
     protected void onResume() {
         super.onResume();
-        if (rot != null) sm.registerListener(this, rot, SensorManager.SENSOR_DELAY_GAME);
         startNet();
     }
 
     @Override
     protected void onPause() {
-        if (rot != null) sm.unregisterListener(this);
+        if (sm != null) sm.unregisterListener(this);
         stopNet();
         super.onPause();
     }
@@ -213,6 +220,15 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         hands.addView(bl, hl); hands.addView(br, hr);
         box.addView(hands);
 
+        final Button cb = button(compass ? "🧭 Bússola contra o desvio: ligada" : "🧭 Bússola contra o desvio: desligada", false, null);
+        cb.setOnClickListener(v -> {
+            compass = !compass; fusion.enabled = compass;
+            prefs.edit().putBoolean("ctlCompass", compass).apply();
+            cb.setText(compass ? "🧭 Bússola contra o desvio: ligada" : "🧭 Bússola contra o desvio: desligada");
+        });
+        box.addView(cb);
+        box.addView(text("A bússola impede que o raio escorregue com o tempo. Se o raio ficar puxando para um lado perto de metais, desligue.", 13, 0x99FFFFFF, false));
+
         final TextView err = text("", 14, 0xFFFF8A80, false);
         box.addView(button("Conectar ▶", true, v -> {
             String c = codeF.getText().toString().trim();
@@ -225,7 +241,8 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         }));
         box.addView(err);
         box.addView(button("Usar este celular como óculos", false, v -> backToHeadset()));
-        box.addView(text("Dica: no óculos, aperte ◎ (ou segure) para alinhar o raio com a direção que você está olhando.", 13, 0x99FFFFFF, false));
+        box.addView(text("Segure como preferir: deitado (tela para cima, como controle de TV) ou em pé (como uma câmera). Aponte para a frente e toque ◎: o app aprende o jeito que você segura.\n\n"
+                + "Para menos atraso, ligue o roteador (hotspot) no celular do óculos e conecte este nele, em vez de usar o Wi-Fi de casa.", 13, 0x99FFFFFF, false));
         setContentView(sv);
     }
 
@@ -256,8 +273,8 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         if (pad != null && (c == KeyEvent.KEYCODE_VOLUME_UP || c == KeyEvent.KEYCODE_VOLUME_DOWN)) {
             int bit = c == KeyEvent.KEYCODE_VOLUME_UP ? RemoteProto.B_TRIGGER : RemoteProto.B_GRIP;
             if (e.getAction() == KeyEvent.ACTION_DOWN) {
-                if (e.getRepeatCount() == 0) { keyButtons |= bit; buzz(bit == RemoteProto.B_TRIGGER ? 22 : 14); pad.invalidate(); }
-            } else if (e.getAction() == KeyEvent.ACTION_UP) { keyButtons &= ~bit; pad.invalidate(); }
+                if (e.getRepeatCount() == 0) { keyButtons |= bit; kick(); buzz(bit == RemoteProto.B_TRIGGER ? 22 : 14); pad.invalidate(); }
+            } else if (e.getAction() == KeyEvent.ACTION_UP) { keyButtons &= ~bit; kick(); pad.invalidate(); }
             return true;     // não muda o volume
         }
         return super.dispatchKeyEvent(e);
@@ -266,11 +283,21 @@ public class ControllerActivity extends Activity implements SensorEventListener 
     /* ================= sensores ================= */
 
     @Override
-    public void onSensorChanged(SensorEvent e) {
-        float x = e.values[0], y = e.values[1], z = e.values[2];
-        float w = e.values.length > 3 ? e.values[3] : (float) Math.sqrt(Math.max(0, 1 - x * x - y * y - z * z));
-        qx = x; qy = y; qz = z; qw = w;
+    public void onSensorChanged(SensorEvent e) {         // chega na linha de envio, não na tela
+        if (e.sensor == magRot && magRot != null) { fusion.compass(RemoteProto.quat(e.values), e.timestamp); return; }
+        float[] q = RemoteProto.quat(e.values);
+        if (magRot != null) { fusion.game(q); q = fusion.corrected(q); }
+        qx = q[0]; qy = q[1]; qz = q[2]; qw = q[3];
         sensorOk = true;
+        if (SystemClock.uptimeMillis() - lastSend >= 8) {    // manda na hora (até ~120 por segundo)
+            try { send(); } catch (Throwable ignored) { }
+        }
+    }
+
+    /** Botão apertado/solto: manda já, sem esperar a próxima leitura do sensor. */
+    private void kick() {
+        Handler h = net;
+        if (h != null && running) h.post(() -> { try { send(); } catch (Throwable ignored) { } });
     }
 
     @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
@@ -291,6 +318,16 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                 sock.setBroadcast(true);
                 sock.setSoTimeout(500);
             } catch (Throwable t) { sock = null; }
+            if (rot != null) sm.registerListener(this, rot, SensorManager.SENSOR_DELAY_FASTEST, net);
+            if (magRot != null && compass) sm.registerListener(this, magRot, SensorManager.SENSOR_DELAY_UI, net);
+            try {
+                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) {
+                    wifiLock = wm.createWifiLock(Build.VERSION.SDK_INT >= 29 ? RemoteLink.WIFI_MODE_FULL_LOW_LATENCY : RemoteLink.WIFI_MODE_FULL_HIGH_PERF, "visaobox-controle");
+                    wifiLock.setReferenceCounted(false);
+                    wifiLock.acquire();       // sem economia de energia: os pacotes não ficam presos
+                }
+            } catch (Throwable ignored) { }
             rxThread = new Thread(this::receive, "controle-recebe");
             rxThread.setDaemon(true);
             rxThread.start();
@@ -306,14 +343,17 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         if (s != null) s.close();
         sock = null;
         peer = null;
+        try { if (wifiLock != null && wifiLock.isHeld()) wifiLock.release(); } catch (Throwable ignored) { }
     }
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            try { send(); } catch (Throwable ignored) { }
-            net.postDelayed(this, 11);           // ~90 pacotes por segundo
-            if (pad != null && (seq % 9) == 0) main.post(() -> { if (pad != null) pad.invalidate(); });
+            if (SystemClock.uptimeMillis() - lastSend >= 18) {   // celular parado: o sensor manda menos, então garante o envio
+                try { send(); } catch (Throwable ignored) { }
+            }
+            net.postDelayed(this, 20);
+            if (pad != null && (++ticks % 6) == 0) main.post(() -> { if (pad != null) pad.invalidate(); });
         }
     };
 
@@ -339,6 +379,7 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         st.flags = left ? RemoteProto.F_LEFT : 0;
         byte[] d = RemoteProto.state(st);
         s.send(new DatagramPacket(d, d.length, peer, peerPort));
+        lastSend = now;
     }
 
     /** Onde procurar o óculos: IP digitado, o roteador/hotspot e o broadcast de cada rede. */
@@ -466,13 +507,14 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                 int r = ptrRegion.valueAt(i);
                 if (r > 0 && r < R_PAD) b |= r;
             }
-            padButtons = b;
+            if (b != padButtons) { padButtons = b; kick(); }
         }
 
         /** Garante que um toque rápido dure pelo menos ~70 ms (para nenhum pacote perdido apagar o clique). */
         private void pulse(int bit, long ms) {
             pulseButtons |= bit;
-            main.postDelayed(() -> { pulseButtons &= ~bit; invalidate(); }, ms);
+            kick();
+            main.postDelayed(() -> { pulseButtons &= ~bit; kick(); invalidate(); }, ms);
         }
 
         @Override
@@ -531,7 +573,7 @@ public class ControllerActivity extends Activity implements SensorEventListener 
             txt.setTypeface(Typeface.DEFAULT);
             txt.setTextSize(dp(12));
             txt.setColor(0x99FFFFFF);
-            c.drawText(!sensorOk ? "Sem sensor de rotação neste celular" : ok ? "Topo do celular = para onde o raio aponta" : "Os dois celulares precisam estar no mesmo Wi-Fi", dp(36), dp(48), txt);
+            c.drawText(!sensorOk ? "Sem sensor de rotação neste celular" : ok ? "Aponte para a frente e toque ◎ para alinhar" : "Os dois celulares precisam estar no mesmo Wi-Fi", dp(36), dp(48), txt);
             txt.setTextAlign(Paint.Align.CENTER);
 
             int held = padButtons | keyButtons | pulseButtons;

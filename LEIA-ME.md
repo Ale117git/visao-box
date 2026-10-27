@@ -32,6 +32,13 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.4 — controle sem atraso, tremor e desvio
+- **Menos atraso:** os dois celulares desligam a economia de energia do Wi-Fi enquanto o controle está ligado (ela segurava os pacotes e o raio andava aos pulos). O controle manda a cada leitura do sensor (até ~120 por segundo) e o óculos prevê alguns milissegundos à frente para compensar a rede.
+- **Sem tremor:** filtro "One Euro" na mira — firme com a mão parada, rápido com a mão em movimento.
+- **Sem escorregar:** bússola corrigindo devagar o giroscópio nos dois celulares (Ajustes → Modo → "Bússola contra o desvio"; no controle, na tela de configuração). Desligue se o óculos tiver ímã.
+- **Segure como quiser:** deitado (como controle de TV) ou em pé (como câmera). Ao tocar ◎, o app aprende o jeito que você segura. Antes, segurar em pé deixava a conta instável.
+- Dica: o hotspot do celular do óculos costuma dar menos atraso que o Wi-Fi de casa.
+
 ## Novidades da 6.3 — outro celular como controle
 - **Modo controle:** instale o mesmo APK no segundo celular, abra e toque em "Este celular É o controle" (ou Ajustes → Modo → "Virar controle"). Da próxima vez ele já abre como controle; para voltar, toque em ⚙ → "Usar este celular como óculos".
 - **Parear:** os dois no mesmo Wi-Fi (ou o celular do óculos com o roteador/hotspot ligado e o controle conectado nele). A tela de início do óculos mostra o código de 4 dígitos e o IP; digite o código no controle. O IP só é preciso se a busca automática falhar.
@@ -125,6 +132,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 ## Módulos (app/src/main/java/br/visaobox/app)
 - `ControllerActivity` — modo controle (tela de botões, sensores, envio pela rede)
 - `RemoteLink` / `RemoteProto` — recepção do celular-controle no óculos e o protocolo UDP
+- `YawFusion` / `OneEuro` — bússola contra o desvio e filtro de tremor
 
 | Arquivo | Função |
 |---|---|

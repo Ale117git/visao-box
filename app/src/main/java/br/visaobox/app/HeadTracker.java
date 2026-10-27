@@ -15,6 +15,9 @@ final class HeadTracker implements SensorEventListener {
 
     private final SensorManager sm;
     private final Sensor sensor;
+    private final Sensor magSensor;                  // vetor de rotação com bússola (contra o desvio)
+    final YawFusion fusion = new YawFusion();
+    private boolean gameMode;
     final boolean available;
     volatile boolean hasData = false;
     volatile int displayRotation = Surface.ROTATION_90;
@@ -29,13 +32,19 @@ final class HeadTracker implements SensorEventListener {
             s = sm.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
             if (s == null) s = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
         }
+        gameMode = s != null && s.getType() == Sensor.TYPE_GAME_ROTATION_VECTOR;
         sensor = s;
         available = s != null;
+        magSensor = gameMode ? sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) : null;
     }
 
     void start() {
         if (available) sm.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME);
+        if (magSensor != null) sm.registerListener(this, magSensor, SensorManager.SENSOR_DELAY_UI);
     }
+
+    /** Liga/desliga a bússola contra o desvio (some sozinha se o óculos tiver ímã). */
+    void setCompass(boolean on) { fusion.enabled = on; }
 
     void stop() {
         if (available) sm.unregisterListener(this);
@@ -56,7 +65,10 @@ final class HeadTracker implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent e) {
-        SensorManager.getRotationMatrixFromVector(R, e.values);
+        if (e.sensor == magSensor && magSensor != null) { fusion.compass(RemoteProto.quat(e.values), e.timestamp); return; }
+        float[] q = RemoteProto.quat(e.values);
+        if (gameMode) { fusion.game(q); q = fusion.corrected(q); }
+        SensorManager.getRotationMatrixFromVector(R, q);
         // colunas de R = eixos do aparelho no mundo (x leste, y norte, z para cima)
         float fx = -R[2], fy = -R[5], fz = -R[8];            // frente = para onde a câmera traseira aponta
         float ux, uz, rz;
@@ -71,6 +83,7 @@ final class HeadTracker implements SensorEventListener {
         float p = (float) Math.asin(Math.max(-1f, Math.min(1f, fz)));
         float r = (float) Math.atan2(-rz, uz);
         if (!hasData) { yaw0 = y; hasData = true; }
+        if (fusion.justInit) { fusion.justInit = false; yaw0 = wrap(yaw0 + wrap(y - yaw)); }   // bússola entrou: sem pulo
         yaw = y; pitch = p; roll = r;
     }
 

@@ -115,4 +115,85 @@ final class RemoteProto {
         float pitch = (float) Math.asin(Math.max(-1f, Math.min(1f, dz)));
         return new float[]{yaw, pitch};
     }
+
+    /* ================= quaternions {x, y, z, w} (aparelho → mundo) ================= */
+
+    static float[] quat(float[] v) {
+        float x = v[0], y = v[1], z = v[2];
+        float w = v.length > 3 ? v[3] : (float) Math.sqrt(Math.max(0, 1 - x * x - y * y - z * z));
+        return new float[]{x, y, z, w};
+    }
+
+    static float[] mul(float[] a, float[] b) {
+        return new float[]{
+                a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+                a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+                a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+                a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+    }
+
+    static float[] conj(float[] q) { return new float[]{-q[0], -q[1], -q[2], q[3]}; }
+
+    static float[] norm(float[] q) {
+        float n = (float) Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+        if (n < 1e-9f) return new float[]{0, 0, 0, 1};
+        return new float[]{q[0] / n, q[1] / n, q[2] / n, q[3] / n};
+    }
+
+    /** Gira o vetor v (do aparelho) para o mundo. */
+    static float[] rotate(float[] q, float[] v) {
+        float[] r = mul(mul(q, new float[]{v[0], v[1], v[2], 0}), conj(q));
+        return new float[]{r[0], r[1], r[2]};
+    }
+
+    static float[] unrotate(float[] q, float[] v) { return rotate(conj(q), v); }
+
+    /** Rotação em torno do eixo vertical (z) do mundo. */
+    static float[] rotZ(float a) { return new float[]{0, 0, (float) Math.sin(a / 2), (float) Math.cos(a / 2)}; }
+
+    /** Quanto "b" está girado em relação a "a" em torno do eixo vertical (b ≈ rotZ(δ)·a). */
+    static float yawBetween(float[] b, float[] a) {
+        float[] r = mul(b, conj(a));
+        return wrap((float) (2 * Math.atan2(r[2], r[3])));
+    }
+
+    static float wrap(float a) {
+        while (a > Math.PI) a -= (float) (2 * Math.PI);
+        while (a < -Math.PI) a += (float) (2 * Math.PI);
+        return a;
+    }
+
+    /**
+     * Eixo de mira do aparelho, escolhido na hora de alinhar: o topo do celular (segurado deitado,
+     * como um controle de TV) ou as costas dele (segurado em pé, como uma câmera) — o que estiver
+     * mais na horizontal. O eixo é ajustado para apontar exatamente para a frente naquele momento,
+     * assim a conta nunca fica instável (o problema de apontar o topo para cima).
+     */
+    static float[] aimAxis(float[] q) {
+        float[] top = rotate(q, new float[]{0, 1, 0}), back = rotate(q, new float[]{0, 0, -1});
+        float[] d = Math.abs(top[2]) <= Math.abs(back[2]) ? top : back;
+        float h = (float) Math.hypot(d[0], d[1]);
+        if (h < 1e-4f) return new float[]{0, 1, 0};
+        return unrotate(q, new float[]{d[0] / h, d[1] / h, 0});
+    }
+
+    /** {guinada, inclinação} do eixo de mira (guinada + = direita, inclinação + = para cima). */
+    static float[] aimYawPitch(float[] q, float[] axis) {
+        float[] d = rotate(q, axis);
+        return new float[]{(float) Math.atan2(d[0], d[1]), (float) Math.asin(Math.max(-1f, Math.min(1f, d[2])))};
+    }
+
+    /** Velocidade angular no mundo (rad/s) entre duas leituras. */
+    static float[] angVel(float[] q0, float[] q1, float dt) {
+        float[] r = mul(q1, conj(q0));
+        if (r[3] < 0) r = new float[]{-r[0], -r[1], -r[2], -r[3]};
+        float k = 2 / Math.max(1e-3f, dt);
+        return new float[]{r[0] * k, r[1] * k, r[2] * k};
+    }
+
+    /** Prevê a rotação daqui a "tau" segundos girando com a velocidade "w". */
+    static float[] predict(float[] q, float[] w, float tau) {
+        float[] dq = norm(new float[]{w[0] * tau / 2, w[1] * tau / 2, w[2] * tau / 2, 1});
+        return norm(mul(dq, q));
+    }
 }

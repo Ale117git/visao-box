@@ -85,6 +85,7 @@ final class SettingsModel {
         b.toggle("Puxar a janela para perto com a mão", () -> cfg.handDepth, v -> cfg.handDepth = v);
         b.toggle("Esqueleto: mostrar as linhas da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
         b.toggle("Aceitar outro celular como controle", () -> cfg.remoteCtl, v -> cfg.remoteCtl = v);
+        b.toggle("Bússola contra o desvio (desligue se o óculos tiver ímã)", () -> cfg.compass, v -> cfg.compass = v);
         b.action("Código para o celular-controle", env::remoteInfo, () -> { });
         b.action("Usar ESTE celular como controle", () -> "Virar controle", env::becomeController);
         b.toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);

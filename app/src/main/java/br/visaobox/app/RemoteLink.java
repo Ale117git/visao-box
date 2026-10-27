@@ -32,6 +32,7 @@ final class RemoteLink {
     private Thread thread;
     private DatagramSocket sock;
     private WifiManager.MulticastLock lock;
+    private WifiManager.WifiLock wifiLock;              // tira a economia de energia do Wi-Fi (ela atrasa os pacotes)
     private final ExecutorService out = Executors.newSingleThreadExecutor();
 
     private volatile InetAddress peer;
@@ -42,7 +43,9 @@ final class RemoteLink {
     private int lastTime;
 
     // estado lido pela interface
-    volatile float yaw, pitch;
+    private float[] qNow = {0, 0, 0, 1}, lastQ;
+    private final float[] omega = new float[3];           // velocidade de giro (rad/s), para prever
+    private long rxAt;
     volatile boolean leftHand;
     volatile float scrollX, scrollY;
     /** Eventos de botão: {bit, 1 = apertou / 0 = soltou}. Um {0, 1} avisa "conectou". */
@@ -65,7 +68,11 @@ final class RemoteLink {
         run = true;
         try {
             WifiManager wm = (WifiManager) ctx.getSystemService(Context.WIFI_SERVICE);
-            if (wm != null) { lock = wm.createMulticastLock("visaobox-controle"); lock.setReferenceCounted(false); lock.acquire(); }
+            if (wm != null) {
+                lock = wm.createMulticastLock("visaobox-controle"); lock.setReferenceCounted(false); lock.acquire();
+                wifiLock = wm.createWifiLock(Build.VERSION.SDK_INT >= 29 ? WIFI_MODE_FULL_LOW_LATENCY : WIFI_MODE_FULL_HIGH_PERF, "visaobox-controle");
+                wifiLock.setReferenceCounted(false); wifiLock.acquire();
+            }
         } catch (Throwable ignored) { }
         thread = new Thread(this::loop, "controle-rede");
         thread.setDaemon(true);
@@ -77,7 +84,19 @@ final class RemoteLink {
         DatagramSocket s = sock;
         if (s != null) s.close();
         try { if (lock != null && lock.isHeld()) lock.release(); } catch (Throwable ignored) { }
+        try { if (wifiLock != null && wifiLock.isHeld()) wifiLock.release(); } catch (Throwable ignored) { }
         if (buttons != 0) releaseAll();
+    }
+
+    static final int WIFI_MODE_FULL_HIGH_PERF = 3, WIFI_MODE_FULL_LOW_LATENCY = 4;
+
+    /**
+     * Rotação do controle prevista para AGORA: a última recebida, girada um pouquinho para a frente
+     * no tempo com a velocidade da mão (compensa o atraso da rede e os pacotes que chegam aos montes).
+     */
+    synchronized float[] predicted(long now) {
+        float tau = Math.min(.045f, Math.max(0, now - rxAt + 10) / 1000f);
+        return RemoteProto.predict(qNow, omega, tau);
     }
 
     private void releaseAll() {
@@ -149,9 +168,16 @@ final class RemoteLink {
                 if (fresh) { scrollX = s.scrollX; scrollY = s.scrollY; events.add(new int[]{0, 1}); }
             }
             lastSeq = s.seq;
+            float[] q = RemoteProto.norm(new float[]{s.qx, s.qy, s.qz, s.qw});
+            synchronized (this) {
+                float dt = (s.time - lastTime) / 1000f;
+                if (lastQ != null && !fresh && dt > .002f && dt < .2f) {
+                    float[] w = RemoteProto.angVel(lastQ, q, dt);
+                    for (int i = 0; i < 3; i++) omega[i] += (w[i] - omega[i]) * .5f;
+                } else if (fresh || dt >= .2f) { omega[0] = omega[1] = omega[2] = 0; }
+                lastQ = q; qNow = q; rxAt = now;
+            }
             lastTime = s.time;
-            float[] yp = RemoteProto.yawPitch(s.qx, s.qy, s.qz, s.qw);
-            yaw = yp[0]; pitch = yp[1];
             leftHand = (s.flags & RemoteProto.F_LEFT) != 0;
             scrollX = s.scrollX; scrollY = s.scrollY;
             int ch = s.buttons ^ buttons;

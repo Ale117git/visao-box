@@ -81,6 +81,7 @@ final class Config {
     int handStyle = 1;              // aparência das mãos (HAND_STYLES): luva por padrão
     boolean handDepth = true;       // puxar a mão para perto do rosto traz a janela junto
     boolean remoteCtl = true;       // aceita outro celular como controle (Wi-Fi)
+    boolean compass = true;         // bússola contra o desvio da direção
 
     // ---- Dock ----
     boolean dockFollow = false;      // falso = dock fixo no ambiente (modo espacial)
@@ -99,7 +100,7 @@ final class Config {
         bgImage = o.bgImage; weather = o.weather; weatherAmt = o.weatherAmt; weatherSound = o.weatherSound;
         showStart = o.showStart; twoHands = o.twoHands; webCss = o.webCss; assistantName = o.assistantName;
         format = o.format; resolution = o.resolution; handStyle = o.handStyle; handDepth = o.handDepth;
-        remoteCtl = o.remoteCtl;
+        remoteCtl = o.remoteCtl; compass = o.compass;
     }
 
     void load(SharedPreferences p, String k) {
@@ -164,6 +165,7 @@ final class Config {
         handStyle = p.getInt(k + "hstyle", handStyle);
         handDepth = p.getBoolean(k + "hdepth", handDepth);
         remoteCtl = p.getBoolean(k + "rctl", remoteCtl);
+        compass = p.getBoolean(k + "compass", compass);
         if (handStyle < 0 || handStyle >= HAND_STYLES.length) handStyle = 1;
         if (format < 0 || format >= FORMATS.length) format = 0;
         if (resolution < 0 || resolution >= RESOLUTIONS.length) resolution = 0;
@@ -192,7 +194,7 @@ final class Config {
                 .putString(k + "bgimg", bgImage).putInt(k + "wx", weather).putFloat(k + "wxa", weatherAmt).putBoolean(k + "wxs", weatherSound)
                 .putBoolean(k + "start", showStart).putBoolean(k + "hands2", twoHands).putFloat(k + "css2", webCss).putInt(k + "aname", assistantName)
                 .putInt(k + "fmt", format).putInt(k + "resp", resolution).putInt(k + "hstyle", handStyle).putBoolean(k + "hdepth", handDepth)
-                .putBoolean(k + "rctl", remoteCtl)
+                .putBoolean(k + "rctl", remoteCtl).putBoolean(k + "compass", compass)
                 .putBoolean(k + "exists", true)
                 .apply();
     }

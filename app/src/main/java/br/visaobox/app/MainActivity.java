@@ -95,6 +95,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         remote = new RemoteLink(this, prefs);
 
         head = new HeadTracker(this);
+        head.setCompass(cfg.compass);
         vr = new VrView(this, cfg, head, this);
         vr.ui.remote = remote;
         cam = new CameraVision(this, vr, cfg);
@@ -943,7 +944,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override public void switchCamera() { main.post(() -> cam.next()); }
     @Override public String cameraLabel() { return cam.label(); }
-    @Override public void configChanged() { cfg.save(prefs, "cur_"); }
+    @Override public void configChanged() { cfg.save(prefs, "cur_"); head.setCompass(cfg.compass); }
 
     // ---- painel de ajustes ----
     @Override
@@ -978,6 +979,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     @Override public void setTracking(boolean on) { final long t = SystemClock.uptimeMillis(); vr.onGl(() -> vr.ui.setTracking(on, t)); }
     @Override public void changed() {
         cfg.save(prefs, "cur_");
+        head.setCompass(cfg.compass);
         if (remote != null && started) { if (cfg.remoteCtl) remote.start(); else remote.stop(); }
     }
 
