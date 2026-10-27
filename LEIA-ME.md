@@ -32,6 +32,14 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.3 — outro celular como controle
+- **Modo controle:** instale o mesmo APK no segundo celular, abra e toque em "Este celular É o controle" (ou Ajustes → Modo → "Virar controle"). Da próxima vez ele já abre como controle; para voltar, toque em ⚙ → "Usar este celular como óculos".
+- **Parear:** os dois no mesmo Wi-Fi (ou o celular do óculos com o roteador/hotspot ligado e o controle conectado nele). A tela de início do óculos mostra o código de 4 dígitos e o IP; digite o código no controle. O IP só é preciso se a busca automática falhar.
+- **Como segurar:** em pé, tela para cima, topo apontando para a frente. O raio sai da sua mão (modelo de braço) e a mira fica onde ele cruza as janelas.
+- **Botões:** toque no touchpad = clicar · arrastar no touchpad = rolar · A = clicar (segurar arrasta pela barra) · B = voltar · ✊ = segurar e arrastar qualquer janela · ▦ menu · ⌨ teclado · 🎤 voz · ◎ toque = alinhar o raio com o seu olhar, segure = centralizar tudo · Volume + = clicar · Volume − = segurar janela.
+- O controle vibra ao passar o raio por um botão. Rede: UDP na porta 47811 (~90 pacotes por segundo).
+- Limite: é rotação (3 graus de liberdade). A posição da mão é estimada, não medida; se o raio "escorregar" com o tempo, toque em ◎.
+
 ## Novidades da 6.2
 
 - **Mãos por cima das janelas**, em Ajustes → Modo → Aparência das mãos:
@@ -115,6 +123,8 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 - A análise da câmera reaproveita a memória a cada quadro, sem pausas para limpeza de memória.
 
 ## Módulos (app/src/main/java/br/visaobox/app)
+- `ControllerActivity` — modo controle (tela de botões, sensores, envio pela rede)
+- `RemoteLink` / `RemoteProto` — recepção do celular-controle no óculos e o protocolo UDP
 
 | Arquivo | Função |
 |---|---|

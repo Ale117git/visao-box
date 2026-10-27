@@ -64,6 +64,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private FrameLayout root;
     private SettingsPanel panel;
     private Assistant assistant;
+    private RemoteLink remote;
     private SettingsPanel startScreen;
     private boolean started;
     private Button gear;
@@ -84,10 +85,18 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences("visaobox", MODE_PRIVATE);
+        // da última vez este celular era o controle: abre direto no modo controle
+        if (prefs.getBoolean("ctlMode", false)) {
+            startActivity(new android.content.Intent(this, ControllerActivity.class));
+            finish();
+            return;
+        }
         cfg.load(prefs, "cur_");
+        remote = new RemoteLink(this, prefs);
 
         head = new HeadTracker(this);
         vr = new VrView(this, cfg, head, this);
+        vr.ui.remote = remote;
         cam = new CameraVision(this, vr, cfg);
         assistant = new Assistant(this, cfg, new Assistant.Callback() {
             @Override public void onWake() {
@@ -150,6 +159,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         loadLists();
         if (cfg.rememberLayout) vr.pendingLayout = prefs.getString("layout", "");
         android.view.Choreographer.getInstance().postFrameCallback(webTick);
+        if (cfg.remoteCtl) remote.start();
     }
 
     /** O "ei visão" precisa do microfone: pede uma vez ao abrir o app. */
@@ -202,10 +212,13 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         if (!started) return;
         vr.onResume();
         if (cfg.assistant && has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
+        if (cfg.remoteCtl) remote.start();
     }
 
     @Override
     protected void onPause() {
+        if (remote == null) { super.onPause(); return; }     // virou controle no onCreate
+        remote.stop();
         if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
         assistant.stopWake();
@@ -218,6 +231,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override
     protected void onDestroy() {
+        if (remote == null) { super.onDestroy(); return; }
         cam.stop();
         io.shutdown();
         for (int i = 0; i < panes.size(); i++) panes.valueAt(i).destroy();
@@ -962,7 +976,22 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
 
     @Override public void setPlacement(int p) { final long t = SystemClock.uptimeMillis(); vr.onGl(() -> vr.ui.setPlacement(p, t)); }
     @Override public void setTracking(boolean on) { final long t = SystemClock.uptimeMillis(); vr.onGl(() -> vr.ui.setTracking(on, t)); }
-    @Override public void changed() { cfg.save(prefs, "cur_"); }
+    @Override public void changed() {
+        cfg.save(prefs, "cur_");
+        if (remote != null && started) { if (cfg.remoteCtl) remote.start(); else remote.stop(); }
+    }
+
+    @Override public String remoteInfo() { return remote.info(); }
+
+    @Override
+    public void becomeController() {
+        main.post(() -> {
+            cfg.save(prefs, "cur_");
+            prefs.edit().putBoolean("ctlMode", true).apply();
+            startActivity(new android.content.Intent(this, ControllerActivity.class));
+            finish();
+        });
+    }
 
     private void vrToast(String s) { vr.onGl(() -> vr.ui.sayNow(s)); android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show(); }
 

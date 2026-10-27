@@ -175,6 +175,14 @@ final class SpatialUi {
 
     boolean padActive(long now) { return now - padSeen < 120000; }
 
+    // celular-controle (outro celular apontando, como o controle do Meta Quest)
+    RemoteLink remote;
+    boolean remoteOn;
+    private float rYawOff; private boolean rAlign = true; private long rAlignAt;
+    private boolean rHomeDown, rHomeFired; private long rHomeT;
+    private boolean rScrollInit; private float rsx, rsy, rAccX, rAccY, rPageAcc;
+    private float rHandX = Float.NaN, rHandY;
+
     // ponteiro central
     float gazeX = 0, gazeY = 0; private final Latch gLatch = new Latch(); private boolean gazeForced;
     private String dwellKey; private long dwellStart; private boolean dwellFired; private String lastGazeKey;
@@ -1541,12 +1549,116 @@ final class SpatialUi {
         }
     }
 
+    /**
+     * Celular-controle: o raio sai da mão (modelo de braço) e a mira fica onde ele cruza as janelas.
+     * Botões viram os mesmos comandos do controle de Xbox (A, B, X, Y, LT, R3).
+     */
+    private void updateRemote(long now, float dt) {
+        RemoteLink r = remote;
+        if (r == null) { remoteOn = false; return; }
+        boolean on = cfg.remoteCtl && r.active(now);
+        int[] ev;
+        while ((ev = r.events.poll()) != null) {
+            if (!cfg.remoteCtl) continue;
+            int bit = ev[0]; boolean down = ev[1] == 1;
+            switch (bit) {
+                case 0: rAlign = true; rAlignAt = now; rScrollInit = false; say("Celular-controle conectado", now); synth.click(); break;
+                case RemoteProto.B_TRIGGER: onKey(KeyEvent.KEYCODE_BUTTON_A, down, now); break;
+                case RemoteProto.B_BACK: onKey(KeyEvent.KEYCODE_BUTTON_B, down, now); break;
+                case RemoteProto.B_MENU: onKey(KeyEvent.KEYCODE_BUTTON_X, down, now); break;
+                case RemoteProto.B_GRIP: onKey(KeyEvent.KEYCODE_BUTTON_L2, down, now); break;
+                case RemoteProto.B_KEYB: onKey(KeyEvent.KEYCODE_BUTTON_Y, down, now); break;
+                case RemoteProto.B_VOICE: onKey(KeyEvent.KEYCODE_BUTTON_THUMBR, down, now); break;
+                case RemoteProto.B_HOME:
+                    if (down) { rHomeDown = true; rHomeFired = false; rHomeT = now; }
+                    else {
+                        rHomeDown = false;
+                        if (!rHomeFired) { rAlign = true; rAlignAt = now; say("Controle alinhado com o seu olhar", now); }
+                    }
+                    break;
+                default: break;
+            }
+        }
+        if (!on) {
+            if (remoteOn) { remoteOn = false; rHandX = Float.NaN; gazeX = 0; gazeY = 0; say("Celular-controle desconectado", now); }
+            return;
+        }
+        remoteOn = true;
+        padSeen = now;
+        gazeForced = true;
+        if (rHomeDown && !rHomeFired && now - rHomeT > 800) {        // segurar ◎: centraliza tudo
+            rHomeFired = true;
+            host.recenter();
+            rAlign = true; rAlignAt = now + 120;                      // espera a cabeça ser recentralizada
+        }
+        boolean sp = spatial();
+        float hy = sp ? headYaw : 0, hp = sp ? headPitch : 0;
+        if (rAlign && now >= rAlignAt) { rYawOff = HeadTracker.wrap(hy - r.yaw); rAlign = false; }
+        float[] q = remoteAim(HeadTracker.wrap(r.yaw + rYawOff), r.pitch, r.leftHand, hy, hp, f);
+        float tx = Gfx.clamp(q[0], -.75f, .75f), ty = Gfx.clamp(q[1], -.75f, .75f);
+        float a = Gfx.clamp((float) Math.hypot(tx - gazeX, ty - gazeY) / .03f, .35f, 1f);   // tira o tremor da mão
+        gazeX += (tx - gazeX) * a;
+        gazeY += (ty - gazeY) * a;
+        rHandX = q[2]; rHandY = q[3];
+
+        // rolagem: o controle manda o total acumulado
+        if (!rScrollInit) { rsx = r.scrollX; rsy = r.scrollY; rScrollInit = true; }
+        float dx = r.scrollX - rsx, dy = r.scrollY - rsy;
+        rsx = r.scrollX; rsy = r.scrollY;
+        if (dx != 0 || dy != 0) {
+            Win w = target();
+            if (w != null && isWeb(w.app)) {
+                rAccX += dx; rAccY += dy;
+                int ix = Math.round(rAccX), iy = Math.round(rAccY);
+                if ((ix != 0 || iy != 0) && now - lastScroll > 16) {
+                    host.webScroll(wid(w), ix, iy);
+                    rAccX -= ix; rAccY -= iy; lastScroll = now;
+                }
+            } else if (w != null && (w.app == GALERIA || w.app == ARQUIVOS)) {
+                rPageAcc += dx;
+                if (Math.abs(rPageAcc) > 160) {
+                    boolean nx = rPageAcc > 0;
+                    if (w.app == GALERIA && w.galSel >= 0) pressBtn(w, nx ? "gnext" : "gprev", now);
+                    else pressBtn(w, nx ? "pnext" : "pprev", now);
+                    rPageAcc = 0;
+                }
+            }
+        }
+    }
+
+    /**
+     * Modelo de braço: o ombro fica ao lado e abaixo da cabeça e o antebraço aponta para onde
+     * o controle aponta. O raio sai da mão; a mira é onde ele passa a ~1,6 m.
+     * Devolve {miraX, miraY, mãoX, mãoY} nas coordenadas da tela.
+     */
+    static float[] remoteAim(float yaw, float pitch, boolean leftHand, float headYaw, float headPitch, float f) {
+        double side = leftHand ? -1 : 1;
+        double cb = Math.cos(headYaw), sb = Math.sin(headYaw);         // o corpo acompanha a cabeça
+        double ox = side * .17, oy = -.36, oz = .08;                    // ombro/cotovelo em relação aos olhos (m)
+        double dx = Math.sin(yaw) * Math.cos(pitch), dy = Math.sin(pitch), dz = Math.cos(yaw) * Math.cos(pitch);
+        double fore = .32;
+        double hx = ox * cb + oz * sb + fore * dx, hyy = oy + fore * dy, hz = -ox * sb + oz * cb + fore * dz;
+        double D = 1.6;
+        double tx = hx + D * dx, ty = hyy + D * dy, tz = hz + D * dz;
+        float[] aim = screenOf(tx, ty, tz, headYaw, headPitch, f);
+        float[] hand = screenOf(hx, hyy, hz, headYaw, headPitch, f);
+        return new float[]{aim[0], aim[1], hand[0], hand[1]};
+    }
+
+    private static float[] screenOf(double x, double y, double z, float headYaw, float headPitch, float f) {
+        double py = Math.atan2(x, z), pp = Math.atan2(y, Math.hypot(x, z));
+        double ry = Math.max(-1.25, Math.min(1.25, HeadTracker.wrap((float) (py - headYaw))));
+        double rp = Math.max(-1.25, Math.min(1.25, headPitch - pp));
+        return new float[]{(float) (f * Math.tan(ry)), (float) (f * Math.tan(rp))};
+    }
+
     /** Navegador na frente (NAV ou YOUTUBE) ou -1. */
     int webFocusId() { Win w = front(); return w != null && isWeb(w.app) ? wid(w) : -1; }
 
     void update(long now, float dt) {
         layout();
         updatePad(now, dt);
+        updateRemote(now, dt);
         // mãos
         for (int i = 0; i < 2; i++) {
             if (handActive(i, now)) feed(ptrs[i], hands[i].cx, hands[i].cy, hands[i].down, now);
@@ -1580,7 +1692,7 @@ final class SpatialUi {
             if (p.dockDrag) hov.add("home");
             if (p.kbDrag) hov.add("kbgrab");
         }
-        if (gazeKey != null && !gazeKey.equals(lastGazeKey)) synth.hover();
+        if (gazeKey != null && !gazeKey.equals(lastGazeKey)) { synth.hover(); if (remoteOn) remote.haptic(12, 110); }
         lastGazeKey = gazeKey;
 
         int fid = webFocusId();
@@ -2961,6 +3073,11 @@ final class SpatialUi {
             g.ring(p.x, p.y, p.down ? .02f : .017f, .003f, p.down ? 0xF27CC4FF : 0xE6FFFFFF);
         }
         Ptr gp = ptrs[3];
+        if (gp.exists && remoteOn && !Float.isNaN(rHandX)) {              // raio do celular-controle
+            float x0 = rHandX + shift(sign, .45f), y0 = rHandY, x1 = gp.x + shift(sign, 1.5f), y1 = gp.y;
+            g.line(x0, y0, x1, y1, .010f, 0x2E7CC4FF);
+            g.line(x0, y0, x1, y1, .0028f, gp.down ? 0xF27CC4FF : 0xA6FFFFFF);
+        }
         if (gp.exists) {
             float gx = gp.x + shift(sign, 1.5f), gy = gp.y;
             boolean on = lastGazeKey != null;

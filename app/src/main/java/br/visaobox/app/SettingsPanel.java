@@ -117,6 +117,14 @@ final class SettingsPanel extends ScrollView {
         cards.addView(card("✋  Mãos (VR box)", "As duas mãos na frente da câmera: pinça para clicar e arrastar, e as duas juntas para ampliar janelas.",
                 "Mais imersivo, mas pesa mais e pode travar", hands, () -> { cfg.handInput = true; cfg.twoHands = true; build(); }));
         box.addView(cards);
+        LinearLayout cards2 = hrow();
+        cards2.setPadding(0, dp(10), 0, 0);
+        cards2.addView(card("📱  Outro celular como controle", "Abra o Visão Box no outro celular e escolha \"Virar controle\". Ele aponta como o controle do Meta Quest: o raio sai da mão e o toque clica. "
+                        + "Use os dois no mesmo Wi-Fi e digite lá: " + act.remoteInfo() + ".",
+                "Funciona junto com qualquer um dos modos acima", false, () -> { }));
+        cards2.addView(card("🎯  Este celular É o controle", "Transforma este aparelho no controle apontador do outro celular, que fica no óculos.",
+                "Toque aqui para virar controle", false, act::becomeController));
+        box.addView(cards2);
 
         List<SettingsModel.Section> all = SettingsModel.build(cfg, act);
         section("Ajustes rápidos");

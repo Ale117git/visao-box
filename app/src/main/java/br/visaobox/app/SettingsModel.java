@@ -38,6 +38,8 @@ final class SettingsModel {
         void testVoice();
         void switchCamera();
         void webSizeChanged();
+        String remoteInfo();          // "Código 4821 · IP 192.168.0.12"
+        void becomeController();      // usar ESTE celular como controle
     }
 
     static final class Item {
@@ -82,6 +84,9 @@ final class SettingsModel {
         b.choice("Aparência das mãos", Config.HAND_STYLES, () -> cfg.handStyle, v -> cfg.handStyle = v).quick = true;
         b.toggle("Puxar a janela para perto com a mão", () -> cfg.handDepth, v -> cfg.handDepth = v);
         b.toggle("Esqueleto: mostrar as linhas da mão", () -> cfg.skeleton, v -> cfg.skeleton = v);
+        b.toggle("Aceitar outro celular como controle", () -> cfg.remoteCtl, v -> cfg.remoteCtl = v);
+        b.action("Código para o celular-controle", env::remoteInfo, () -> { });
+        b.action("Usar ESTE celular como controle", () -> "Virar controle", env::becomeController);
         b.toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);
         b.toggle("Tocar olhando parado", () -> cfg.dwell, v -> cfg.dwell = v);
         b.toggle("Navegação simplificada (alvos grandes)", () -> cfg.simple, v -> cfg.simple = v);
