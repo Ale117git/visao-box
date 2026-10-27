@@ -32,6 +32,14 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.5 — mouse no ar, touchpad e Bluetooth
+- **Ligação por Bluetooth (sem Wi-Fi):** o celular-controle vira um controle de videogame de verdade (HID). No controle: Bluetooth → Conectar → "Ficar visível". No celular do óculos: Configurações → Bluetooth → parear o celular-controle. Depois conecta sozinho. Precisa de Android 9+ e de um fabricante que não bloqueie o recurso; se bloquear, o app avisa e o Wi-Fi continua funcionando.
+- **Mouse no ar (novo padrão):** girar o celular move a mira, como o controle de uma Smart TV. Não tem "frente" para alinhar, então não escorrega. Tremor pequeno é ignorado; movimento rápido acelera. Funciona segurando deitado ou em pé.
+- **Touchpad:** o dedo move a mira, como no notebook. Toque = clicar, dois dedos = rolar. É o modo mais estável.
+- **Raio:** o modo da 6.3/6.4 continua disponível (só pelo Wi-Fi).
+- Troque o modo no botão "Modo: …" no topo da tela do controle. ◎: toque = mira no centro, segurar = centralizar tudo.
+- Sensibilidade do mouse no ar: Baixa / Média / Alta, na tela ⚙ do controle.
+
 ## Novidades da 6.4 — controle sem atraso, tremor e desvio
 - **Menos atraso:** os dois celulares desligam a economia de energia do Wi-Fi enquanto o controle está ligado (ela segurava os pacotes e o raio andava aos pulos). O controle manda a cada leitura do sensor (até ~120 por segundo) e o óculos prevê alguns milissegundos à frente para compensar a rede.
 - **Sem tremor:** filtro "One Euro" na mira — firme com a mão parada, rápido com a mão em movimento.
@@ -133,6 +141,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 - `ControllerActivity` — modo controle (tela de botões, sensores, envio pela rede)
 - `RemoteLink` / `RemoteProto` — recepção do celular-controle no óculos e o protocolo UDP
 - `YawFusion` / `OneEuro` — bússola contra o desvio e filtro de tremor
+- `BtGamepad` — o celular-controle como controle Bluetooth (HID)
 
 | Arquivo | Função |
 |---|---|

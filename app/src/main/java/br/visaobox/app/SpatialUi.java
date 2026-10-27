@@ -185,6 +185,7 @@ final class SpatialUi {
     private float[] rAxis = {0, 1, 0};                 // eixo de mira do aparelho (escolhido ao alinhar)
     private final OneEuro rfYaw = new OneEuro(1.1f, .9f, 1f), rfPitch = new OneEuro(1.1f, .9f, 1f);
     private float rYawUnwrap, rYawPrev; private long rLastT;
+    private boolean rMouseInit; private float rmx, rmy; private int rMode = -1;
 
     // ponteiro central
     float gazeX = 0, gazeY = 0; private final Latch gLatch = new Latch(); private boolean gazeForced;
@@ -1449,6 +1450,9 @@ final class SpatialUi {
     }
 
     /** Analógicos e gatilhos do controle (chegam a cada movimento). */
+    /** Analógicos do celular-controle por Bluetooth: velocidade da mira direta (sem a curva do analógico). */
+    boolean padLinear;
+
     void setAxes(float lx, float ly, float rx, float ry, float lt, float rt, float hx, float hy, long now) {
         padSeen = now;
         gazeForced = true;
@@ -1517,6 +1521,8 @@ final class SpatialUi {
     }
 
     private long hatRepeat;
+    /** Analógico no máximo = giro de BT_RATE rad/s (o celular-controle manda assim). */
+    static final float BT_RATE = 2.2f;
 
     /** Aplica os analógicos a cada quadro. */
     private void updatePad(long now, float dt) {
@@ -1529,7 +1535,11 @@ final class SpatialUi {
         final float dz = .18f;
         Win tw0 = target();
         boolean game = tw0 != null && tw0.app == NAVE && !tw0.over;
-        float lx = !game && Math.abs(padLX) > dz ? padLX : 0, ly = !game && Math.abs(padLY) > dz ? padLY : 0;
+        if (padLinear && !game) {                              // mouse no ar pelo Bluetooth
+            if (Math.abs(padLX) > .01f) gazeX = Gfx.clamp(gazeX + padLX * BT_RATE * f * 1.4f * dt, -.6f, .6f);
+            if (Math.abs(padLY) > .01f) gazeY = Gfx.clamp(gazeY + padLY * BT_RATE * f * 1.4f * dt, -.6f, .6f);
+        }
+        float lx = !padLinear && !game && Math.abs(padLX) > dz ? padLX : 0, ly = !padLinear && !game && Math.abs(padLY) > dz ? padLY : 0;
         if (lx != 0 || ly != 0) {
             gazeX = Gfx.clamp(gazeX + lx * Math.abs(lx) * .55f * dt, -.4f, .4f);
             gazeY = Gfx.clamp(gazeY + ly * Math.abs(ly) * .55f * dt, -.4f, .4f);
@@ -1565,7 +1575,7 @@ final class SpatialUi {
             if (!cfg.remoteCtl) continue;
             int bit = ev[0]; boolean down = ev[1] == 1;
             switch (bit) {
-                case 0: rAlign = true; rAlignAt = now; rScrollInit = false; say("Celular-controle conectado", now); synth.click(); break;
+                case 0: rAlign = true; rAlignAt = now; rScrollInit = false; rMouseInit = false; say("Celular-controle conectado", now); synth.click(); break;
                 case RemoteProto.B_TRIGGER: onKey(KeyEvent.KEYCODE_BUTTON_A, down, now); break;
                 case RemoteProto.B_BACK: onKey(KeyEvent.KEYCODE_BUTTON_B, down, now); break;
                 case RemoteProto.B_MENU: onKey(KeyEvent.KEYCODE_BUTTON_X, down, now); break;
@@ -1576,7 +1586,10 @@ final class SpatialUi {
                     if (down) { rHomeDown = true; rHomeFired = false; rHomeT = now; }
                     else {
                         rHomeDown = false;
-                        if (!rHomeFired) { rAlign = true; rAlignAt = now; say("Controle alinhado com o seu olhar", now); }
+                        if (!rHomeFired) {
+                            if (r.mode == RemoteProto.M_RAY) { rAlign = true; rAlignAt = now; say("Controle alinhado com o seu olhar", now); }
+                            else { gazeX = 0; gazeY = 0; say("Mira no centro", now); }
+                        }
                     }
                     break;
                 default: break;
@@ -1594,6 +1607,17 @@ final class SpatialUi {
             host.recenter();
             rAlign = true; rAlignAt = now + 120;                      // espera a cabeça ser recentralizada
         }
+        int mode = r.mode;
+        if (mode != rMode) { rMode = mode; rMouseInit = false; rAlign = true; rAlignAt = now; }
+        if (mode != RemoteProto.M_RAY) {                       // mouse no ar / touchpad: a mira anda pela diferença
+            float mx = r.mouseX, my = r.mouseY;
+            if (!rMouseInit) { rmx = mx; rmy = my; rMouseInit = true; }
+            float k = f * 1.4f;
+            gazeX = Gfx.clamp(gazeX + (mx - rmx) * k, -.6f, .6f);
+            gazeY = Gfx.clamp(gazeY + (my - rmy) * k, -.6f, .6f);
+            rmx = mx; rmy = my;
+            rHandX = Float.NaN;
+        } else {
         boolean sp = spatial();
         float hy = sp ? headYaw : 0, hp = sp ? headPitch : 0;
         float[] rq = r.predicted(now);
@@ -1612,6 +1636,7 @@ final class SpatialUi {
         gazeX = Gfx.clamp(q[0], -.75f, .75f);
         gazeY = Gfx.clamp(q[1], -.75f, .75f);
         rHandX = q[2]; rHandY = q[3];
+        }
 
         // rolagem: o controle manda o total acumulado
         if (!rScrollInit) { rsx = r.scrollX; rsy = r.scrollY; rScrollInit = true; }

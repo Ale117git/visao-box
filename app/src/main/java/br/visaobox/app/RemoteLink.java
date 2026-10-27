@@ -48,6 +48,8 @@ final class RemoteLink {
     private long rxAt;
     volatile boolean leftHand;
     volatile float scrollX, scrollY;
+    volatile int mode;                                   // RemoteProto.M_MOUSE / M_TOUCHPAD / M_RAY
+    volatile float mouseX, mouseY;                       // movimento total da mira (rad)
     /** Eventos de botão: {bit, 1 = apertou / 0 = soltou}. Um {0, 1} avisa "conectou". */
     final ConcurrentLinkedQueue<int[]> events = new ConcurrentLinkedQueue<>();
 
@@ -180,6 +182,8 @@ final class RemoteLink {
             lastTime = s.time;
             leftHand = (s.flags & RemoteProto.F_LEFT) != 0;
             scrollX = s.scrollX; scrollY = s.scrollY;
+            mode = RemoteProto.mode(s.flags);
+            mouseX = s.mouseX; mouseY = s.mouseY;
             int ch = s.buttons ^ buttons;
             if (ch != 0) for (int bit : RemoteProto.BITS) if ((ch & bit) != 0) events.add(new int[]{bit, (s.buttons & bit) != 0 ? 1 : 0});
             buttons = s.buttons;

@@ -299,7 +299,10 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
             final float rt = Math.max(e.getAxisValue(MotionEvent.AXIS_RTRIGGER), e.getAxisValue(MotionEvent.AXIS_GAS));
             final float hx = e.getAxisValue(MotionEvent.AXIS_HAT_X), hy = e.getAxisValue(MotionEvent.AXIS_HAT_Y);
             final long t = SystemClock.uptimeMillis();
-            vr.onGl(() -> vr.ui.setAxes(lx, ly, rx, ry, lt, rt, hx, hy, t));
+            // o celular-controle por Bluetooth marca Rx = 100/127 e Ry = −50/127 (assim sabemos que é ele)
+            final boolean ours = Math.abs(e.getAxisValue(MotionEvent.AXIS_RX) - BtGamepad.MARK_RX / 127f) < .02f
+                    && Math.abs(e.getAxisValue(MotionEvent.AXIS_RY) - BtGamepad.MARK_RY / 127f) < .02f;
+            vr.onGl(() -> { vr.ui.padLinear = ours; vr.ui.setAxes(lx, ly, rx, ry, lt, rt, hx, hy, t); });
             return true;
         }
         return super.dispatchGenericMotionEvent(e);

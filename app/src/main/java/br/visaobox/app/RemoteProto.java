@@ -17,17 +17,23 @@ import java.nio.charset.StandardCharsets;
 final class RemoteProto {
     static final int PORT = 47811;
     static final byte HELLO = 1, STATE = 2, STATUS = 3, HAPTIC = 4;
-    static final byte VERSION = 1;
+    static final byte VERSION = 2;
 
     // botões
     static final int B_TRIGGER = 1, B_BACK = 2, B_MENU = 4, B_HOME = 8, B_GRIP = 16, B_KEYB = 32, B_VOICE = 64;
     static final int[] BITS = {B_TRIGGER, B_BACK, B_MENU, B_HOME, B_GRIP, B_KEYB, B_VOICE};
     // flags
     static final int F_LEFT = 1;
+    // modo do controle (flags, bits 1-2)
+    static final int M_MOUSE = 0, M_TOUCHPAD = 1, M_RAY = 2;
+    static int mode(int flags) { return (flags >> 1) & 3; }
+    static int withMode(int flags, int mode) { return (flags & ~6) | ((mode & 3) << 1); }
+    static final int STATE_LEN = 56;
 
     static final class State {
         int code, seq, time, buttons, flags;
         float qx, qy, qz, qw = 1, scrollX, scrollY;
+        float mouseX, mouseY;      // movimento total da mira (radianos), no mouse no ar e no touchpad
     }
 
     private static ByteBuffer head(int size, byte type) {
@@ -52,20 +58,22 @@ final class RemoteProto {
     static int helloCode(byte[] d, int len) { return len >= 8 ? ByteBuffer.wrap(d, 4, 4).getInt() : -1; }
 
     static byte[] state(State s) {
-        ByteBuffer b = head(48, STATE);
+        ByteBuffer b = head(STATE_LEN, STATE);
         b.putInt(s.code).putInt(s.seq).putInt(s.time)
                 .putFloat(s.qx).putFloat(s.qy).putFloat(s.qz).putFloat(s.qw)
-                .putInt(s.buttons).putFloat(s.scrollX).putFloat(s.scrollY).putInt(s.flags);
+                .putInt(s.buttons).putFloat(s.scrollX).putFloat(s.scrollY).putInt(s.flags)
+                .putFloat(s.mouseX).putFloat(s.mouseY);
         return b.array();
     }
 
     static State readState(byte[] d, int len) {
-        if (len < 48) return null;
-        ByteBuffer b = ByteBuffer.wrap(d, 4, 44);
+        if (len < STATE_LEN) return null;
+        ByteBuffer b = ByteBuffer.wrap(d, 4, STATE_LEN - 4);
         State s = new State();
         s.code = b.getInt(); s.seq = b.getInt(); s.time = b.getInt();
         s.qx = b.getFloat(); s.qy = b.getFloat(); s.qz = b.getFloat(); s.qw = b.getFloat();
         s.buttons = b.getInt(); s.scrollX = b.getFloat(); s.scrollY = b.getFloat(); s.flags = b.getInt();
+        s.mouseX = b.getFloat(); s.mouseY = b.getFloat();
         return s;
     }
 
@@ -195,5 +203,34 @@ final class RemoteProto {
     static float[] predict(float[] q, float[] w, float tau) {
         float[] dq = norm(new float[]{w[0] * tau / 2, w[1] * tau / 2, w[2] * tau / 2, 1});
         return norm(mul(dq, q));
+    }
+
+    /* ================= mouse no ar ================= */
+
+    /**
+     * Giro da mão (rad/s) → velocidade da mira, com zona morta (tira o tremor) e aceleração
+     * (devagar = preciso, rápido = atravessa a tela).
+     */
+    static float shape(float rate, float sens) {
+        float a = Math.abs(rate) - .03f;
+        if (a <= 0) return 0;
+        float g = .65f + .55f * Math.min(1f, a / 2.5f);
+        return Math.signum(rate) * a * g * sens;
+    }
+
+    /**
+     * Giroscópio (no aparelho) → {direita, baixo} em rad/s, do mesmo jeito segurando deitado ou em pé:
+     * virar para os lados = giro em torno da vertical do MUNDO; levantar = giro em torno do eixo x do aparelho.
+     * rz = linha de baixo da matriz de rotação (para onde x, y, z do aparelho apontam na vertical).
+     */
+    static float[] mouseRates(float gx, float gy, float gz, float[] rz) {
+        float yawRate = -(rz[0] * gx + rz[1] * gy + rz[2] * gz);
+        return new float[]{yawRate, -gx};
+    }
+
+    /** Linha de baixo (eixo vertical) da matriz de rotação do quaternion. */
+    static float[] upRow(float[] q) {
+        float x = q[0], y = q[1], z = q[2], w = q[3];
+        return new float[]{2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)};
     }
 }
