@@ -185,7 +185,7 @@ final class SpatialUi {
     private float[] rAxis = {0, 1, 0};                 // eixo de mira do aparelho (escolhido ao alinhar)
     private final OneEuro rfYaw = new OneEuro(1.1f, .9f, 1f), rfPitch = new OneEuro(1.1f, .9f, 1f);
     private float rYawUnwrap, rYawPrev; private long rLastT;
-    private boolean rMouseInit; private float rmx, rmy; private int rMode = -1;
+    private boolean rMouseInit; private float rmx, rmy, rTX, rTY, rShownX, rShownY; private int rMode = -1;
 
     // ponteiro central
     float gazeX = 0, gazeY = 0; private final Latch gLatch = new Latch(); private boolean gazeForced;
@@ -1611,11 +1611,17 @@ final class SpatialUi {
         if (mode != rMode) { rMode = mode; rMouseInit = false; rAlign = true; rAlignAt = now; }
         if (mode != RemoteProto.M_RAY) {                       // mouse no ar / touchpad: a mira anda pela diferença
             float mx = r.mouseX, my = r.mouseY;
-            if (!rMouseInit) { rmx = mx; rmy = my; rMouseInit = true; }
+            if (!rMouseInit || Math.abs(gazeX - rShownX) > 1e-4f || Math.abs(gazeY - rShownY) > 1e-4f) {
+                if (!rMouseInit) { rmx = mx; rmy = my; rMouseInit = true; }
+                rTX = gazeX; rTY = gazeY;                          // outra coisa mexeu na mira (◎, controle…)
+            }
             float k = f * 1.4f;
-            gazeX = Gfx.clamp(gazeX + (mx - rmx) * k, -.6f, .6f);
-            gazeY = Gfx.clamp(gazeY + (my - rmy) * k, -.6f, .6f);
+            rTX = Gfx.clamp(rTX + (mx - rmx) * k, -.6f, .6f);
+            rTY = Gfx.clamp(rTY + (my - rmy) * k, -.6f, .6f);
             rmx = mx; rmy = my;
+            float al = Math.min(1f, dt * 38f);                      // suaviza os pacotes que chegam aos montes (~15 ms)
+            gazeX += (rTX - gazeX) * al; gazeY += (rTY - gazeY) * al;
+            rShownX = gazeX; rShownY = gazeY;
             rHandX = Float.NaN;
         } else {
         boolean sp = spatial();

@@ -32,6 +32,13 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.6 — touchpad de notebook
+- **Touchpad virou o modo principal** do celular-controle, e ficou maior.
+- Gestos: arrastar 1 dedo = mover a mira (com aceleração: devagar = preciso, rápido = atravessa a tela) · toque = clicar · 2 dedos = rolar · toque com 2 dedos = voltar · toque duplo e arrastar = segurar o clique (arrastar janela pela barra, barras de rolagem) · segurar parado meio segundo = pegar a janela da mira e levar com o dedo.
+- A mira anda suave no óculos mesmo quando os pacotes chegam aos montes.
+- **Bluetooth:** agora quem chama é o controle. Pareie uma vez e toque em "Conectar a um celular pareado" para escolher o celular do óculos.
+- Mouse no ar e Raio continuam no botão "Modo".
+
 ## Correção 6.5.1
 - O modo controle fechava ao abrir no Android 12 ou mais novo (o sensor era pedido rápido demais, acima do limite de 200 leituras por segundo sem permissão especial). Corrigido.
 - Se o app fechar com erro, na próxima abertura aparece o texto do erro com o botão "Copiar".
@@ -147,6 +154,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 - `RemoteLink` / `RemoteProto` — recepção do celular-controle no óculos e o protocolo UDP
 - `YawFusion` / `OneEuro` — bússola contra o desvio e filtro de tremor
 - `BtGamepad` — o celular-controle como controle Bluetooth (HID)
+- `TouchGestures` — gestos do touchpad (toque, 2 dedos, toque duplo, segurar)
 
 | Arquivo | Função |
 |---|---|

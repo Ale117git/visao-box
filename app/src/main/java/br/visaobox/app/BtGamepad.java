@@ -166,6 +166,29 @@ final class BtGamepad {
         } catch (Throwable t) { return null; }
     }
 
+    /** Celulares já pareados com este (para escolher o do óculos). */
+    java.util.List<BluetoothDevice> bonded() {
+        try {
+            BluetoothAdapter a = adapter();
+            if (a != null && a.getBondedDevices() != null) return new java.util.ArrayList<>(a.getBondedDevices());
+        } catch (Throwable ignored) { }
+        return new java.util.ArrayList<>();
+    }
+
+    static String label(BluetoothDevice d) {
+        try { String n = d.getName(); return n != null && !n.isEmpty() ? n : d.getAddress(); } catch (Throwable t) { return "aparelho"; }
+    }
+
+    /** Este celular (controle) chama o celular do óculos — mais confiável do que esperar o óculos chamar. */
+    void connectTo(BluetoothDevice d) {
+        prefs.edit().putString("btHost", d.getAddress()).apply();
+        BluetoothHidDevice h = hid;
+        if (h != null && registered) {
+            try { h.connect(d); listener.onStatus("Conectando a " + label(d) + "…", false); }
+            catch (Throwable t) { listener.onStatus("Não conectou. Tente parear de novo.", false); }
+        } else start();          // conecta sozinho assim que o modo Bluetooth estiver pronto
+    }
+
     /** Manda o estado (só quando muda, e a cada 100 ms para manter vivo). */
     void send(int buttons, float lx, float ly, float rx, float ry, long now) {
         BluetoothHidDevice h = hid; BluetoothDevice d = host;

@@ -63,6 +63,7 @@ public class ControllerActivity extends Activity implements SensorEventListener 
 
     private static final int REQ_BT = 41;
     private static final int SENSOR_US = 5000;
+    private boolean padAfterPerm;
     private static final String[] MODE_NAMES = {"Mouse no ar", "Touchpad", "Raio"};
     private static final String[] SENS_NAMES = {"Baixa", "Média", "Alta"};
     private static final float[] SENS = {.7f, 1f, 1.5f};
@@ -132,7 +133,8 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         left = prefs.getBoolean("ctlLeft", false);
         compass = prefs.getBoolean("ctlCompass", true);
         useBt = prefs.getBoolean("ctlBt", false);
-        mode = prefs.getInt("ctlMode2", RemoteProto.M_MOUSE);
+        mode = prefs.getInt("ctlMode2", RemoteProto.M_TOUCHPAD);
+        if (!prefs.getBoolean("ctl66", false)) { mode = RemoteProto.M_TOUCHPAD; prefs.edit().putBoolean("ctl66", true).putInt("ctlMode2", mode).apply(); }
         sens = prefs.getInt("ctlSens", 1);
         if (sens < 0 || sens > 2) sens = 1;
         if (mode < 0 || mode > 2) mode = RemoteProto.M_MOUSE;
@@ -191,7 +193,9 @@ public class ControllerActivity extends Activity implements SensorEventListener 
     public void onRequestPermissionsResult(int c, String[] perms, int[] res) {
         super.onRequestPermissionsResult(c, perms, res);
         if (c != REQ_BT) return;
-        if (btAllowed()) { ensureBtOn(); bt.start(); showPad(); }
+        boolean toPad = padAfterPerm;
+        padAfterPerm = false;
+        if (btAllowed()) { ensureBtOn(); bt.start(); if (toPad) showPad(); else showSetup(); }
         else if (btText != null) btText.setText("Sem a permissão de Bluetooth não dá para virar controle. Use o Wi-Fi.");
     }
 
@@ -297,11 +301,32 @@ public class ControllerActivity extends Activity implements SensorEventListener 
 
         // ---- Bluetooth ----
         btBox.addView(text("Este celular vira um controle de videogame de verdade. Não precisa de Wi-Fi nem de código.\n\n"
-                + "1. Toque em Conectar (o Android pede a permissão de Bluetooth).\n"
-                + "2. Toque em \"Ficar visível\".\n"
-                + "3. No celular do óculos: Configurações → Bluetooth → parear \"" + bt.name() + "\".\n"
-                + "Depois disso ele conecta sozinho.", 15, 0xCCFFFFFF, false));
-        btBox.addView(button("👁  Ficar visível para parear", false, v -> makeVisible()));
+                + "1. Pareie os dois celulares UMA vez: toque em \"Ficar visível\" e, no celular do óculos, vá em Configurações → Bluetooth → parear \"" + bt.name() + "\".\n"
+                + "2. Aqui, toque em \"Conectar a um celular pareado\" e escolha o celular do óculos.", 15, 0xCCFFFFFF, false));
+        btBox.addView(button("👁  Ficar visível para parear", false, v -> {
+            if (!btAllowed()) { requestPermissions(btPerms(), REQ_BT); return; }
+            ensureBtOn(); makeVisible();
+        }));
+        final LinearLayout devList = new LinearLayout(this);
+        devList.setOrientation(LinearLayout.VERTICAL);
+        btBox.addView(button("📱  Conectar a um celular pareado", true, v -> {
+            if (!btAllowed()) { requestPermissions(btPerms(), REQ_BT); return; }
+            ensureBtOn();
+            devList.removeAllViews();
+            List<android.bluetooth.BluetoothDevice> ds = bt.bonded();
+            if (ds.isEmpty()) devList.addView(text("Nenhum aparelho pareado ainda. Faça o passo 1 primeiro.", 14, 0xFFFFC94D, false));
+            for (android.bluetooth.BluetoothDevice d : ds) {
+                devList.addView(button("🔗  " + BtGamepad.label(d), false, b2 -> {
+                    useBt = true;
+                    if (mode == RemoteProto.M_RAY) mode = RemoteProto.M_TOUCHPAD;
+                    save();
+                    stopLoop(); startLoop();
+                    bt.connectTo(d);
+                    showPad();
+                }));
+            }
+        }));
+        btBox.addView(devList);
         btText = text(btStatus.isEmpty() ? (BtGamepad.supported() ? "" : "Precisa de Android 9 ou mais novo.") : btStatus, 14, 0xFFFFC94D, false);
         btBox.addView(btText);
         btBox.addView(text("Se aparecer \"o fabricante bloqueou\", este celular não aceita o modo Bluetooth: use o Wi-Fi.", 13, 0x99FFFFFF, false));
@@ -339,12 +364,12 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                 code = Integer.parseInt(c);
                 manualIp = ipF.getText().toString().trim();
                 lastTargets = 0; peer = null; lastStatus = -100000;
-            } else if (mode == RemoteProto.M_RAY) mode = RemoteProto.M_MOUSE;
+            } else if (mode == RemoteProto.M_RAY) mode = RemoteProto.M_TOUCHPAD;
             save();
             stopLoop(); startLoop();                     // troca Wi-Fi ⇄ Bluetooth
             if (useBt) {
                 if (!BtGamepad.supported()) { err.setText("O modo Bluetooth precisa de Android 9 ou mais novo. Use o Wi-Fi."); return; }
-                if (!btAllowed()) { requestPermissions(btPerms(), REQ_BT); return; }
+                if (!btAllowed()) { padAfterPerm = true; requestPermissions(btPerms(), REQ_BT); return; }
                 ensureBtOn();
                 bt.start();
             } else bt.stop();
@@ -382,8 +407,9 @@ public class ControllerActivity extends Activity implements SensorEventListener 
     }
 
     private void nextMode() {
-        int n = useBt ? 2 : 3;                                  // o raio precisa do Wi-Fi
-        mode = (mode + 1) % n;
+        // touchpad → mouse no ar → raio (só Wi-Fi) → touchpad
+        mode = mode == RemoteProto.M_TOUCHPAD ? RemoteProto.M_MOUSE
+                : mode == RemoteProto.M_MOUSE && !useBt ? RemoteProto.M_RAY : RemoteProto.M_TOUCHPAD;
         save();
         buzz(25);
     }
@@ -494,7 +520,8 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         }
     };
 
-    private int ourButtons() { return padButtons | keyButtons | pulseButtons; }
+    private volatile int gestureButtons;
+    private int ourButtons() { return padButtons | keyButtons | pulseButtons | gestureButtons; }
 
     /* ---------- Wi-Fi ---------- */
 
@@ -640,24 +667,51 @@ public class ControllerActivity extends Activity implements SensorEventListener 
         final ArrayList<String[]> labels = new ArrayList<>();
         final SparseIntArray ptrRegion = new SparseIntArray();
         final SparseIntArray padIds = new SparseIntArray();         // dedos no touchpad
-        final float[] lastX = new float[16], lastY = new float[16];
-        float tapX, tapY, dotX, dotY; long padT, lastMoveT; boolean padMoved; int maxFingers;
+        float dotX, dotY;
         final long[] downAt = new long[128];
+        final int[] mid = new int[10]; final float[] mx = new float[10], my = new float[10];
+        final TouchGestures gest = new TouchGestures(new TouchGestures.Out() {
+            @Override public void move(float dx, float dy, float dt) {
+                mouseX += dx; mouseY += dy;
+                tpVX += (dx / dt - tpVX) * .6f; tpVY += (dy / dt - tpVY) * .6f; tpAt = SystemClock.uptimeMillis();
+                Handler h = net;
+                if (!useBt && h != null && running) h.post(ControllerActivity.this::maybeSend);
+            }
+            @Override public void scroll(float dx, float dy, float dt) {
+                scrollX += dx; scrollY += dy;
+                svX += (dx / dt - svX) * .6f; svY += (dy / dt - svY) * .6f; svAt = SystemClock.uptimeMillis();
+            }
+            @Override public void hold(int bit, boolean down) {
+                if (down) gestureButtons |= bit; else gestureButtons &= ~bit;
+                kick(); invalidate();
+            }
+            @Override public void tap(int bit) { pulse(bit, 90); }
+            @Override public void buzz(int ms) { ControllerActivity.this.buzz(ms); }
+        });
+        final Runnable gestTick = new Runnable() {
+            @Override public void run() {
+                if (pad != PadView.this) return;
+                gest.tick(SystemClock.uptimeMillis());
+                main.postDelayed(this, 50);
+            }
+        };
 
         PadView(Context c) {
             super(c);
             setBackgroundColor(0xFF07080D);
             stroke.setStyle(Paint.Style.STROKE);
             txt.setTextAlign(Paint.Align.CENTER);
+            gest.density = getResources().getDisplayMetrics().density;
+            main.postDelayed(gestTick, 50);
         }
 
         @Override
         protected void onSizeChanged(int w, int h, int ow, int oh) {
             rects.clear(); ids.clear(); labels.clear();
             float m = dp(10), top = dp(110);
-            float padB = top + (h - top) * .44f;
+            float padB = top + (h - top) * .58f;          // touchpad grande, como num notebook
             add(new RectF(m, top, w - m, padB), R_PAD, "", "");
-            float r2b = padB + (h - top) * .25f;
+            float r2b = padB + (h - top) * .19f;
             float c1 = w * .30f, c2 = w * .70f;
             int leftId = left ? RemoteProto.B_TRIGGER : RemoteProto.B_BACK, rightId = left ? RemoteProto.B_BACK : RemoteProto.B_TRIGGER;
             add(new RectF(m, padB + m, c1 - m / 2, r2b), leftId, leftId == RemoteProto.B_TRIGGER ? "A" : "B", leftId == RemoteProto.B_TRIGGER ? "clicar" : "voltar");
@@ -694,25 +748,6 @@ public class ControllerActivity extends Activity implements SensorEventListener 
             main.postDelayed(() -> { pulseButtons &= ~bit; kick(); invalidate(); }, ms);
         }
 
-        /** Dedo(s) no touchpad: 1 dedo = mira (touchpad) ou rolagem (mouse no ar/raio); 2 dedos = rolagem. */
-        private void padMove(float dx, float dy, int fingers, long now) {
-            float dt = Math.max(.004f, (now - lastMoveT) / 1000f);
-            lastMoveT = now;
-            boolean aim = mode == RemoteProto.M_TOUCHPAD && fingers == 1;
-            if (aim) {
-                float k = .0024f / getResources().getDisplayMetrics().density * SENS[sens];
-                mouseX += dx * k; mouseY += dy * k;
-                tpVX += (dx * k / dt - tpVX) * .6f; tpVY += (dy * k / dt - tpVY) * .6f; tpAt = now;
-                Handler h = net;
-                if (!useBt && h != null && running) h.post(ControllerActivity.this::maybeSend);
-            } else {
-                float k = 4.8f / getResources().getDisplayMetrics().density;
-                float sx = -dx * k, sy = -dy * k;
-                scrollX += sx; scrollY += sy;
-                svX += (sx / dt - svX) * .6f; svY += (sy / dt - svY) * .6f; svAt = now;
-            }
-        }
-
         @Override
         public boolean onTouchEvent(MotionEvent e) {
             int a = e.getActionMasked();
@@ -726,35 +761,33 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                 ptrRegion.put(id, r);
                 if (id < downAt.length) downAt[id] = now;
                 if (r == R_PAD) {
-                    if (padIds.size() == 0) { tapX = x; tapY = y; padT = now; padMoved = false; maxFingers = 0; lastMoveT = now; }
+                    gest.sens = SENS[sens];
+                    gest.aim = mode == RemoteProto.M_TOUCHPAD;
+                    gest.down(id, x, y, now);
                     padIds.put(id, 1);
-                    maxFingers = Math.max(maxFingers, padIds.size());
-                    if (id < lastX.length) { lastX[id] = x; lastY[id] = y; }
                     dotX = x; dotY = y;
                 } else if (r > 0 && r < R_PAD) buzz(r == RemoteProto.B_TRIGGER ? 22 : 14);
                 recompute();
             } else if (a == MotionEvent.ACTION_MOVE) {
-                float sdx = 0, sdy = 0; int n = 0;
-                for (int i = 0; i < e.getPointerCount(); i++) {
+                int k = 0;
+                for (int i = 0; i < e.getPointerCount() && k < mid.length; i++) {
                     int id = e.getPointerId(i);
-                    if (padIds.get(id, 0) == 0 || id >= lastX.length) continue;
-                    float x = e.getX(i), y = e.getY(i);
-                    sdx += x - lastX[id]; sdy += y - lastY[id]; n++;
-                    lastX[id] = x; lastY[id] = y;
-                    dotX = x; dotY = y;
-                    if (Math.hypot(x - tapX, y - tapY) > dp(10)) padMoved = true;
+                    if (padIds.get(id, 0) == 0) continue;
+                    mid[k] = id; mx[k] = e.getX(i); my[k] = e.getY(i); k++;
+                    dotX = e.getX(i); dotY = e.getY(i);
                 }
-                if (n > 0 && (sdx != 0 || sdy != 0)) padMove(sdx / n, sdy / n, n, now);
+                if (k > 0) gest.move(mid, mx, my, k, now);
             } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_POINTER_UP || a == MotionEvent.ACTION_CANCEL) {
                 int i = e.getActionIndex(), id = e.getPointerId(i);
                 int r = ptrRegion.get(id, 0);
                 ptrRegion.delete(id);
-                if (a == MotionEvent.ACTION_CANCEL) { ptrRegion.clear(); padIds.clear(); }
+                if (a == MotionEvent.ACTION_CANCEL) {
+                    for (int q = 0; q < padIds.size(); q++) gest.up(padIds.keyAt(q), now, true);
+                    ptrRegion.clear(); padIds.clear();
+                }
                 if (padIds.get(id, 0) != 0) {
                     padIds.delete(id);
-                    if (padIds.size() == 0 && !padMoved && maxFingers == 1 && now - padT < 260 && a != MotionEvent.ACTION_CANCEL) {
-                        buzz(22); pulse(RemoteProto.B_TRIGGER, 90);           // toque = clicar
-                    }
+                    gest.up(id, now, a == MotionEvent.ACTION_CANCEL);
                 } else if (r > 0 && r < R_PAD && id < downAt.length && now - downAt[id] < 70) pulse(r, 80 - (now - downAt[id]));
                 recompute();
             }
@@ -790,7 +823,10 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                 int id = ids.get(i);
                 String[] lb = labels.get(i);
                 if (id == R_PAD) {
-                    lb = mode == RemoteProto.M_TOUCHPAD ? new String[]{"Arraste = mover a mira", "Toque = clicar · 2 dedos = rolar"}
+                    lb = mode == RemoteProto.M_TOUCHPAD
+                            ? (gest.grabbing() ? new String[]{"✊ Segurando a janela", "arraste para mover · solte para largar"}
+                            : gest.dragging() ? new String[]{"Clique segurado", "arraste · solte para soltar"}
+                            : new String[]{"Arraste = mover a mira", "Toque = clicar · 2 dedos = rolar", "Toque com 2 dedos = voltar · Segure parado = pegar janela"})
                             : mode == RemoteProto.M_MOUSE ? new String[]{"Gire o celular = mover a mira", "Toque = clicar · Arraste = rolar"}
                             : new String[]{"Aponte = mirar", "Toque = clicar · Arraste = rolar"};
                 } else if (id == R_MODE) {
@@ -813,6 +849,11 @@ public class ControllerActivity extends Activity implements SensorEventListener 
                     txt.setTextSize(dp(13));
                     txt.setColor(0xB3FFFFFF);
                     c.drawText(lb[1], r.centerX(), cy + dp(22), txt);
+                }
+                if (lb.length > 2) {
+                    txt.setTextSize(dp(12));
+                    txt.setColor(0x80FFFFFF);
+                    c.drawText(lb[2], r.centerX(), r.bottom - dp(16), txt);
                 }
             }
             if (padIds.size() > 0) {
