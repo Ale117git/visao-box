@@ -33,18 +33,18 @@ final class SpatialUi {
     /* ================= apps ================= */
     static final int NAV = 0, GALERIA = 1, CAMERA = 2, AJUSTES = 3, ARQUIVOS = 4, WEB = 5, MENU = 6,
             RELOGIO = 7, DESENHO = 8, BOLHAS = 9, MUSICA = 10, CINEMA = 11, NOTAS = 12, CONTROLE = 13, YOUTUBE = 14,
-            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18, FUNDOS = 19, CLIMA = 20, PINGUE = 21, CELULAR = 22;
+            PLAYER = 15, MIDIA = 16, NAVE = 17, VOZ = 18, FUNDOS = 19, CLIMA = 20, PINGUE = 21, CELULAR = 22, PC = 23;
     static final String[] NAMES = {"Navegador", "Galeria", "Câmera", "Ajustes", "Arquivos", "Web", "Menu",
-            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão", "Fundos", "Clima", "Pingue-pongue", "Apps do celular"};
+            "Relógio", "Desenho", "Bolhas", "Música", "Cinema", "Notas", "Controle", "YouTube", "Player", "Mídia", "Nave", "Visão", "Fundos", "Clima", "Pingue-pongue", "Apps do celular", "Computador"};
     static final int[][] COLS = {
             {0xFF5AC8FA, 0xFF1E6FD9}, {0xFFFFD36B, 0xFFF0932B}, {0xFFE6EBF2, 0xFF5B6876}, {0xFFB7BFCB, 0xFF5D6675},
             {0xFF7DBEFF, 0xFF3867D6}, {0xFF7BE0A8, 0xFF1E9E63}, {0xFF9AA3B6, 0xFF4B5468}, {0xFFFFB36B, 0xFFE8590C},
-            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}, {0xFF9AD8FF, 0xFF5B4BDB}, {0xFF9FB6CC, 0xFF3D5470}, {0xFFFF8F5C, 0xFF2E7D5B}, {0xFF8CE0C8, 0xFF2B6CB0}};
+            {0xFFF88AE6, 0xFF8E44AD}, {0xFF7FE3FF, 0xFF0A8FC9}, {0xFFFF8A8A, 0xFFC0392B}, {0xFFFF7A9A, 0xFF9B1B50}, {0xFFFFE27A, 0xFFE0A800}, {0xFF9BE15D, 0xFF2E9E3E}, {0xFFFF5A52, 0xFFC4170C}, {0xFF8E7BFF, 0xFF4B2FD6}, {0xFFFF9F68, 0xFFE0457B}, {0xFF6EE7F9, 0xFF2649C9}, {0xFFB9F27C, 0xFF19A974}, {0xFF9AD8FF, 0xFF5B4BDB}, {0xFF9FB6CC, 0xFF3D5470}, {0xFFFF8F5C, 0xFF2E7D5B}, {0xFF8CE0C8, 0xFF2B6CB0}, {0xFFA8B8D8, 0xFF39466B}};
     static final float[][] SIZES = {{.92f, .6f}, {.82f, .54f}, {.64f, .44f}, {1.12f, .8f}, {.72f, .52f}, {.72f, .48f},
-            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}, {.92f, .64f}, {.8f, .56f}, {.86f, .62f}, {.9f, .62f}};
-    static final int[] DOCK = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, VOZ, AJUSTES, MENU};
+            {.86f, .62f}, {.48f, .29f}, {.66f, .44f}, {.62f, .44f}, {.58f, .38f}, {.6f, .4f}, {.66f, .46f}, {.86f, .5f}, {.96f, .62f}, {.96f, .62f}, {.86f, .6f}, {.7f, .52f}, {.4f, .3f}, {.92f, .64f}, {.8f, .56f}, {.86f, .62f}, {.9f, .62f}, {1.2f, .8f}};
+    static final int[] DOCK = {NAV, YOUTUBE, PC, MIDIA, GALERIA, CAMERA, VOZ, AJUSTES, MENU};
     static final int[] MENU_APPS = {NAV, YOUTUBE, MIDIA, GALERIA, CAMERA, AJUSTES, ARQUIVOS, WEB, RELOGIO, DESENHO,
-            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, PINGUE, FUNDOS, CLIMA, CELULAR, CINEMA, VOZ};
+            BOLHAS, MUSICA, NOTAS, CONTROLE, NAVE, PINGUE, FUNDOS, CLIMA, CELULAR, PC, CINEMA, VOZ};
     static final String[][] SITES = {{"YouTube", "https://m.youtube.com"}, {"Google", "https://www.google.com"},
             {"Wikipédia", "https://pt.m.wikipedia.org"}, {"Mapas", "https://www.google.com/maps"},
             {"Notícias", "https://g1.globo.com"}, {"Clima", "https://www.climatempo.com.br"},
@@ -72,7 +72,7 @@ final class SpatialUi {
     static final class Part { float x, y, vx, vy, life; }
     static final class Win {
         int id, app; float yaw, pitch, dist, w, h; long born; boolean minimized, behind;
-        float cx, cy, s; boolean visible;
+        float cx, cy, s, dsc = 1; boolean visible;
         final ArrayList<Stroke> strokes = new ArrayList<>(); int pen = 0xFFFFFFFF;
         final ArrayList<Bubble> bubbles = new ArrayList<>(); final ArrayList<Part> parts = new ArrayList<>();
         int score; float t; final long[] flash = new long[6]; long shot;
@@ -411,6 +411,7 @@ final class SpatialUi {
         if (app == MIDIA) host.loadMedia();
         if (app == FUNDOS && host.galleryAllowed()) host.galleryItems();
         if (app == CELULAR) host.phoneApps();
+        if (app == PC) host.pcOpen();
         if (w != null) { w.minimized = false; toFront(w); if (isWeb(app)) host.webOpen(wid(w)); return w; }
         int k = 0;
         for (Win o : wins) if (!o.minimized) k++;
@@ -434,6 +435,7 @@ final class SpatialUi {
         // fecha as páginas da janela (para o vídeo/música não continuar tocando)
         if (w.app == NAV) { for (int id : w.tabs) host.webClose(id); w.tabs.clear(); }
         else if (isWeb(w.app)) host.webClose(w.app);
+        if (w.app == PC) host.pcClose();                    // para de receber o vídeo (economiza bateria)
     }
 
     Parts parts(Win w) {
@@ -1371,6 +1373,7 @@ final class SpatialUi {
 
     private static final Object[][] VOICE_APPS = {
             {CELULAR, "apps do celular", "aplicativos do celular", "meus apps", "meus aplicativos"},
+            {PC, "computador", "tela do mac", "mac", "pc", "notebook"},
             {NAV, "navegador", "internet", "chrome", "google"}, {YOUTUBE, "youtube"}, {MIDIA, "midia", "videos", "musicas", "player"},
             {GALERIA, "galeria", "fotos"}, {CAMERA, "camera"}, {AJUSTES, "ajustes", "configuracoes", "configuracao"},
             {ARQUIVOS, "arquivos"}, {MENU, "menu", "aplicativos", "apps"}, {RELOGIO, "relogio", "hora"}, {DESENHO, "desenho"},
@@ -2141,6 +2144,7 @@ final class SpatialUi {
         Parts P = parts(w);
         float a = Gfx.ease((now - w.born) * cfg.animSpeed / 280f);
         float sc = w.s * (.9f + .1f * a);
+        w.dsc = sc;
         c.save();
         c.translate(w.cx + shift(sign, w.dist), w.cy);
         c.scale(sc, sc);
@@ -2201,6 +2205,7 @@ final class SpatialUi {
             case FUNDOS: drawBackdrops(w, P); break;
             case CLIMA: drawWeatherApp(w, P); break;
             case CELULAR: drawPhoneApps(w, P); break;
+            case PC: drawPc(w, P); break;
             case CONTROLE: drawPad(w, P, now); break;
             default: break;
         }
@@ -2903,6 +2908,11 @@ final class SpatialUi {
                 c.drawCircle(.14f, -.2f, .3f, fl);
                 c.drawRoundRect(new RectF(-.5f, -.08f, .52f, .14f), .11f, .11f, fl);
                 for (int k = 0; k < 3; k++) c.drawLine(-.26f + k * .26f, .3f, -.34f + k * .26f, .52f, s);
+                break;
+            case PC:                                         // monitor
+                c.drawRoundRect(new RectF(-.6f, -.48f, .6f, .26f), .08f, .08f, s);
+                c.drawLine(0, .26f, 0, .44f, s);
+                c.drawLine(-.26f, .48f, .26f, .48f, s);
                 break;
             case CELULAR:
                 c.drawRoundRect(new RectF(-.34f, -.6f, .34f, .6f), .1f, .1f, s);
@@ -3812,6 +3822,50 @@ final class SpatialUi {
             say("Abrindo " + a.label + "…", now);
             host.launchApp(a.pkg);
         }
+    }
+
+    /* ================= Computador (tela do Mac/PC por vídeo) ================= */
+
+    /** O shader do VrView desenha o vídeo onde esta janela deixa o buraco (pcA/pcB levam a tela até o vídeo). */
+    boolean pcOn;
+    final float[] pcA = new float[3], pcB = new float[3];
+    private final Paint pcClear = new Paint();
+    { pcClear.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)); }
+
+    private void drawPc(Win w, Parts P) {
+        Canvas c = g.c;
+        RectF C = P.content;
+        PcLink pl = host.pcLink();
+        if (pl == null || !pl.streaming || !pl.hasFrame) {
+            String st = pl == null ? "" : pl.status;
+            g.txt("🖥", C.centerX(), C.centerY() - .07f, .05f, 0xCCFFFFFF, Paint.Align.CENTER, g.regular);
+            g.txt(g.fit(st, .017f, C.width() - .04f, g.medium), C.centerX(), C.centerY() + .0f, .017f, Color.WHITE, Paint.Align.CENTER, g.medium);
+            g.txt("No Mac: abra \"Visão Box PC\" (os dois na mesma rede ou no cabo USB)", C.centerX(), C.centerY() + .04f, .013f, 0x99FFFFFF, Paint.Align.CENTER, g.regular);
+            return;
+        }
+        RectF r = fitRect(C, pl.vw / (float) pl.vh);
+        c.drawRect(r, pcClear);                               // buraco: o vídeo aparece aqui
+        float rr = spatial() ? roll : 0;
+        pcMap(r, w.cx, w.cy, w.dsc, rr, pcA, pcB);
+        pcOn = true;
+        g.txt(pl.fps + " qps", C.right - .01f, P.title.centerY(), .012f, 0x80FFFFFF, Paint.Align.RIGHT, g.regular);
+    }
+
+    static RectF fitRect(RectF C, float aspect) {
+        float w = C.width(), h = C.height();
+        if (w / h > aspect) { float nw = h * aspect; return new RectF(C.centerX() - nw / 2, C.top, C.centerX() + nw / 2, C.bottom); }
+        float nh = w / aspect; return new RectF(C.left, C.centerY() - nh / 2, C.right, C.centerY() + nh / 2);
+    }
+
+    /**
+     * Da tela (canvas: tela = Rot(−roll)·(T + sc·local)) para (u, v) do vídeo dentro do retângulo r.
+     * u = A·(x, y, 1), v = B·(x, y, 1).
+     */
+    static void pcMap(RectF r, float tx, float ty, float sc, float roll, float[] A, float[] B) {
+        float co = (float) Math.cos(roll), si = (float) Math.sin(roll);
+        float W = r.width(), H = r.height();
+        A[0] = co / (sc * W); A[1] = -si / (sc * W); A[2] = (-tx / sc - r.left) / W;
+        B[0] = si / (sc * H); B[1] = co / (sc * H); B[2] = (-ty / sc - r.top) / H;
     }
 
     private void drawPhoneApps(Win w, Parts P) {

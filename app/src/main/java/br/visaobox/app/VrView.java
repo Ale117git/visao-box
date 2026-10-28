@@ -95,6 +95,9 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
     private int prog, aPos, aScene;
     private int uUiS, uUiT, uUiMat, uBackMat, uUpS, uUpT;
     private int uCam2D, uUi, uBack, uMask, uBg, uHasBack, uSeg, uMaskTexel, uCamAdj, uAdj, uVigR;
+    private int uCanShift, uPc, uPcOn, uPcA, uPcB, uPcMat;
+    private final Host host;
+    private PcLink pc;
     private int cam2DTex, maskTex;
     private final float[] ident = new float[16];
     private long cam2DStamp = -1, maskStampGl = -1;
@@ -148,6 +151,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         this.cfg = cfg;
         this.head = head;
         this.ui = new SpatialUi(cfg, host, g);
+        this.host = host;
         this.backdrop = new Backdrop(ctx);
         ui.backdrop = backdrop;
         Random r = new Random(7);
@@ -176,8 +180,8 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             "attribute vec2 aScene;\n" +
             "uniform vec3 uUiS; uniform vec3 uUiT; uniform mat4 uUiMat; uniform mat4 uBackMat;\n" +
 
-            "uniform vec3 uUpS; uniform vec3 uUpT;\n" +
-            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene;\n" +
+            "uniform vec3 uUpS; uniform vec3 uUpT; uniform float uCanShift;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene; varying vec2 vCan;\n" +
             "void main() {\n" +
             "  vec3 p = vec3(aScene, 1.0);\n" +
             "  vec4 u = vec4(dot(p, uUiS), dot(p, uUiT), 0.0, 1.0);\n" +
@@ -186,6 +190,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
 
             "  vUp = vec2(dot(p, uUpS), dot(p, uUpT));\n" +
             "  vScene = aScene;\n" +
+            "  vCan = vec2(aScene.x - uCanShift, aScene.y);\n" +
             "  gl_Position = vec4(aPos, 0.0, 1.0);\n" +
             "}\n";
 
@@ -196,18 +201,29 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             "uniform samplerExternalOES uUi; uniform samplerExternalOES uBack; uniform sampler2D uMask;\n" +
             "uniform int uBg; uniform int uHasBack; uniform int uSeg;\n" +
             "uniform vec2 uMaskTexel; uniform vec4 uCamAdj; uniform vec4 uAdj; uniform float uVigR;\n" +
-            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene;\n" +
+            "uniform samplerExternalOES uPc; uniform int uPcOn; uniform vec3 uPcA; uniform vec3 uPcB; uniform mat4 uPcMat;\n" +
+            "varying vec2 vUi; varying vec2 vBack; varying vec2 vUp; varying vec2 vScene; varying vec2 vCan;\n" +
             "void main() {\n" +
             "  vec4 ui = texture2D(uUi, vUi);\n" +
             "  vec3 col;\n" +
+            // tela do computador: aparece no buraco que a janela "Computador" deixa na interface
+            "  bool pcIn = false; vec3 pc = vec3(0.0);\n" +
+            "  if (uPcOn == 1) {\n" +
+            "    vec3 c3 = vec3(vCan, 1.0);\n" +
+            "    vec2 q = vec2(dot(c3, uPcA), dot(c3, uPcB));\n" +
+            "    if (q.x >= 0.0 && q.x <= 1.0 && q.y >= 0.0 && q.y <= 1.0) {\n" +
+            "      pcIn = true;\n" +
+            "      pc = texture2D(uPc, (uPcMat * vec4(q.x, 1.0 - q.y, 0.0, 1.0)).xy).rgb;\n" +
+            "    }\n" +
+            "  }\n" +
             "  if (uBg == 2) {\n" +
-            "    col = ui.rgb;\n" +
+            "    col = pcIn ? ui.rgb + pc * (1.0 - ui.a) : ui.rgb;\n" +
             "  } else {\n" +
             "    bool inside = vUp.x >= 0.0 && vUp.x <= 1.0 && vUp.y >= 0.0 && vUp.y <= 1.0;\n" +
             "    vec3 cam = texture2D(uCam2D, vUp).rgb;\n" +
             "    if (!inside) cam = vec3(0.03);\n" +
             "    cam = clamp((cam - 0.5) * uCamAdj.y + 0.5 + uCamAdj.x, 0.0, 1.0) * uCamAdj.z * uCamAdj.w;\n" +
-            "    vec3 base = cam;\n" +
+            "    vec3 base = pcIn ? pc : cam;\n" +
             "    if (uHasBack == 1) { vec4 b = texture2D(uBack, vBack); base = b.rgb + base * (1.0 - b.a); }\n" +
             "    if (uSeg > 0 && inside) {\n" +
             "      float m = texture2D(uMask, vUp).r;\n" +
@@ -302,6 +318,14 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         uCamAdj = GLES20.glGetUniformLocation(p, "uCamAdj");
         uAdj = GLES20.glGetUniformLocation(p, "uAdj");
         uVigR = GLES20.glGetUniformLocation(p, "uVigR");
+        uCanShift = GLES20.glGetUniformLocation(p, "uCanShift");
+        uPc = GLES20.glGetUniformLocation(p, "uPc");
+        uPcOn = GLES20.glGetUniformLocation(p, "uPcOn");
+        uPcA = GLES20.glGetUniformLocation(p, "uPcA");
+        uPcB = GLES20.glGetUniformLocation(p, "uPcB");
+        uPcMat = GLES20.glGetUniformLocation(p, "uPcMat");
+        pc = host.pcLink();
+        if (pc != null) pc.glInit();
 
         cam2DTex = gen2D();
         maskTex = gen2D();
@@ -355,6 +379,8 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             boolean segOn = camBg && cfg.segMode != Config.SEG_OFF && segReady && maskData != null;
             boolean useBack = segOn && ui.anyBehind();
 
+            if (pc != null) pc.glUpdate();
+            ui.pcOn = false;                              // a janela Computador liga de novo ao se desenhar
             // 1) interface: desenhada uma vez só (Canvas acelerado); o 3D de cada olho sai do shader
             drawLayer(front, useBack ? 2 : 0, camBg, now);
             if (useBack) drawLayer(back, 1, camBg, now);
@@ -552,6 +578,16 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
         GLES20.glUniform4f(uCamAdj, cfg.camBrightness, cfg.camContrast, Gfx.clamp(cfg.camOpacity, 0, 1), ui.cinema() ? .3f : 1f);
         GLES20.glUniform4f(uAdj, cfg.brightness, cfg.contrast, cfg.saturation, n == 2 ? cfg.vignette : 0);
         GLES20.glUniform1f(uVigR, .62f);
+        boolean pcOn = ui.pcOn && pc != null && pc.hasFrame;
+        GLES20.glUniform1i(uPcOn, pcOn ? 1 : 0);
+        if (pcOn) {
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE5);
+            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, pc.tex);
+            GLES20.glUniform1i(uPc, 5);
+            GLES20.glUniform3f(uPcA, ui.pcA[0], ui.pcA[1], ui.pcA[2]);
+            GLES20.glUniform3f(uPcB, ui.pcB[0], ui.pcB[1], ui.pcB[2]);
+            GLES20.glUniformMatrix4fv(uPcMat, 1, false, pc.mat, 0);
+        }
 
         GLES20.glEnableVertexAttribArray(aPos);
         GLES20.glEnableVertexAttribArray(aScene);
@@ -563,6 +599,7 @@ public class VrView extends GLSurfaceView implements GLSurfaceView.Renderer {
             int sign = n == 2 ? (e == 0 ? 1 : -1) : 0;
             float aspect = eyeW / eyeH;
             GLES20.glUniform3f(uUiS, 1f / aspect, 0, .5f - ui.shift(sign, 1.5f) / aspect);
+            GLES20.glUniform1f(uCanShift, ui.shift(sign, 1.5f));
             GLES20.glActiveTexture(GLES20.GL_TEXTURE2);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, fl.tex);
             GLES20.glUniform1i(uUi, 2);

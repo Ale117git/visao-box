@@ -61,6 +61,10 @@ interface Host {
     Bitmap logo();
 
     // apps instalados no celular
+    // computador (tela do Mac/PC por vídeo)
+    PcLink pcLink();
+    void pcOpen();
+    void pcClose();
     java.util.List<PhoneApp> phoneApps();     // carrega na primeira vez (lista vazia enquanto carrega)
     void launchApp(String pkg);
 

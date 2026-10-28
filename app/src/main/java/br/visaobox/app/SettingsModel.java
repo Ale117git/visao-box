@@ -40,6 +40,8 @@ final class SettingsModel {
         void webSizeChanged();
         String remoteInfo();          // "Código 4821 · IP 192.168.0.12"
         void becomeController();      // usar ESTE celular como controle
+        String pcIpLabel();           // IP do computador (ou "Automático")
+        void editPcIp();
     }
 
     static final class Item {
@@ -88,6 +90,7 @@ final class SettingsModel {
         b.toggle("Bússola contra o desvio (desligue se o óculos tiver ímã)", () -> cfg.compass, v -> cfg.compass = v);
         b.action("Código para o celular-controle", env::remoteInfo, () -> { });
         b.action("Usar ESTE celular como controle", () -> "Virar controle", env::becomeController);
+        b.action("IP do computador (app Computador)", env::pcIpLabel, env::editPcIp);
         b.toggle("Ponteiro no centro da visão", () -> cfg.gazePointer, v -> cfg.gazePointer = v);
         b.toggle("Tocar olhando parado", () -> cfg.dwell, v -> cfg.dwell = v);
         b.toggle("Navegação simplificada (alvos grandes)", () -> cfg.simple, v -> cfg.simple = v);

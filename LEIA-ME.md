@@ -32,6 +32,12 @@ Um sistema inspirado no visionOS, feito para um celular Android dentro de um VR 
   - modo simplificado com alvos grandes.
 - **Painel de ajustes**, aberto pela engrenagem. Todas as mudanças aparecem na hora. O painel também tem a **tela de calibração**, os perfis (salvar e carregar) e a opção de restaurar os valores padrão.
 
+## Novidades da 6.7 — a tela do Mac no Visão Box
+- **App "Computador"** (no dock e no menu, ou pela voz: "abrir computador"): mostra a tela do Mac/PC numa janela no espaço. O celular continua cuidando do 3D e da cabeça (sem atraso ao virar), e o Mac só manda o vídeo. Mouse e teclado são os do próprio Mac.
+- **Programa do Mac:** pasta `pc/` (veja `pc/LEIA-ME-PC.md`). Precisa do ffmpeg (`brew install ffmpeg`); usa o chip de vídeo do Mac.
+- O celular acha o Mac sozinho na rede. Se não achar: Ajustes → Modo → "IP do computador".
+- Cabo USB com "Ancoragem USB" ou Wi-Fi 5 GHz deixam a imagem mais lisa. Se a rede atrasar, o Mac pula direto para a imagem mais nova.
+
 ## Novidades da 6.6 — touchpad de notebook
 - **Touchpad virou o modo principal** do celular-controle, e ficou maior.
 - Gestos: arrastar 1 dedo = mover a mira (com aceleração: devagar = preciso, rápido = atravessa a tela) · toque = clicar · 2 dedos = rolar · toque com 2 dedos = voltar · toque duplo e arrastar = segurar o clique (arrastar janela pela barra, barras de rolagem) · segurar parado meio segundo = pegar a janela da mira e levar com o dedo.
@@ -155,6 +161,7 @@ O app **Controle** (no menu) mostra o controle ao vivo, com os botões acendendo
 - `YawFusion` / `OneEuro` — bússola contra o desvio e filtro de tremor
 - `BtGamepad` — o celular-controle como controle Bluetooth (HID)
 - `TouchGestures` — gestos do touchpad (toque, 2 dedos, toque duplo, segurar)
+- `PcLink` — recebe e decodifica a tela do computador (app Computador)
 
 | Arquivo | Função |
 |---|---|

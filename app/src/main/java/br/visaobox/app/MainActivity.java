@@ -65,6 +65,8 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     private SettingsPanel panel;
     private Assistant assistant;
     private RemoteLink remote;
+    private PcLink pc;
+    private boolean pcWasOpen;
     private SettingsPanel startScreen;
     private boolean started;
     private Button gear;
@@ -98,6 +100,7 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         }
         cfg.load(prefs, "cur_");
         remote = new RemoteLink(this, prefs);
+        pc = new PcLink(prefs);
 
         head = new HeadTracker(this);
         head.setCompass(cfg.compass);
@@ -219,12 +222,14 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
         vr.onResume();
         if (cfg.assistant && has(Manifest.permission.RECORD_AUDIO)) assistant.startWake();
         if (cfg.remoteCtl) remote.start();
+        if (pcWasOpen) { pcWasOpen = false; pc.open(); }
     }
 
     @Override
     protected void onPause() {
         if (remote == null) { super.onPause(); return; }     // virou controle no onCreate
         remote.stop();
+        if (pc.isOpen()) { pcWasOpen = true; pc.close(); }
         if (recorder != null) stopRecordingMain();          // salva o vídeo se o app for fechado gravando
         head.stop();
         assistant.stopWake();
@@ -992,6 +997,34 @@ public class MainActivity extends ComponentActivity implements Host, SettingsPan
     }
 
     @Override public String remoteInfo() { return remote.info(); }
+
+    // ---- computador (tela do Mac/PC) ----
+    @Override public PcLink pcLink() { return pc; }
+    @Override public void pcOpen() { pc.open(); }
+    @Override public void pcClose() { pc.close(); }
+
+    @Override public String pcIpLabel() {
+        String ip = prefs.getString("pcIp", "");
+        return ip.isEmpty() ? "Automático" : ip;
+    }
+
+    /** IP do computador digitado à mão (se a busca automática não achar). */
+    @Override
+    public void editPcIp() {
+        main.post(() -> {
+            final android.widget.EditText e = new android.widget.EditText(this);
+            e.setText(prefs.getString("pcIp", ""));
+            e.setHint("ex.: 192.168.0.20");
+            e.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("IP do computador")
+                    .setMessage("O programa Visão Box PC mostra o IP. Deixe vazio para procurar sozinho.")
+                    .setView(e)
+                    .setPositiveButton("Salvar", (d, w) -> prefs.edit().putString("pcIp", e.getText().toString().trim()).apply())
+                    .setNegativeButton("Cancelar", null)
+                    .show();
+        });
+    }
 
     @Override
     public void becomeController() {
